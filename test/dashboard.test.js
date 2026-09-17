@@ -52,4 +52,11 @@ assert.ok(serverContent.includes('/website'), "server.js must handle /website co
 assert.ok(serverContent.includes('DASHBOARD_URL'), "server.js should use DASHBOARD_URL environment variable");
 console.log("  ✅ server.js GET /dashboard route and /website command verified.");
 
+// 5. Verify Contribute section & GitHub links
+assert.ok(htmlContent.includes("Contribute to TelePaisa"), "HTML should have Contribute section title");
+assert.ok(htmlContent.includes("https://github.com/kamalesh2602/whatsapp-ai-finance-bot/issues"), "Report Issue link must be correct");
+assert.ok(htmlContent.includes("https://github.com/kamalesh2602/whatsapp-ai-finance-bot/issues/new?template=feature_request.md"), "Feature Request link must be correct");
+assert.ok(htmlContent.includes('target="_blank"'), "Contribution links must open in new tab");
+console.log("  ✅ Contribute section & GitHub URLs verified.");
+
 console.log("\n🎉 All Dashboard Integration tests passed successfully!");
