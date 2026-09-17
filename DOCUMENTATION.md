@@ -24,6 +24,7 @@ When typing `/` in Telegram, TelePaisa auto-suggests:
 - `/summary` — View spending summary
 - `/recent` — View recent transactions
 - `/budget` — View monthly budget limits
+- `/website` — Open analytics dashboard
 
 ### 2. Persistent Reply Keyboard
 After sending `/start` or `/help`, TelePaisa attaches a 4-button persistent reply keyboard at the bottom of your chat:
@@ -51,6 +52,7 @@ Tapping any button triggers the action instantly without needing to type slash c
 | **`/budget <category> <amount>`** | Set or update monthly category budget | `/budget food 5000` | Confirmation message: `✅ Monthly budget set: ₹5000 for food` |
 | **`/edit <num> <amount> [category]`** | Edit amount/category of an expense | `/edit 1 50 food` | Confirmation message: `✅ Updated transaction: ₹50 on food` |
 | **`/delete <num>`** | Delete an expense by page number | `/delete 1` | Confirmation message: `✅ Deleted transaction: ₹500 on food` |
+| **`/website`** | Open web analytics dashboard | `/website` | Inline button `[ 🌐 Open Dashboard ]` linking to web dashboard |
 
 ---
 

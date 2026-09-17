@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TelePaisa — Personal Finance Analytics</title>
+  <meta name="description" content="Conversational AI personal finance analytics dashboard for TelePaisa Telegram Bot.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Dashboard Styling -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">💸</div>
+        <div>
+          <h1 class="brand-title">TelePaisa</h1>
+          <p class="brand-subtitle">AI Personal Finance Analytics</p>
+        </div>
+      </div>
+      
+      <div class="user-filter">
+        <span class="filter-label">User ID:</span>
+        <input type="text" id="phoneInput" placeholder="Enter Telegram Chat ID" class="input-field" />
+        <button id="fetchBtn" class="btn btn-primary">Load Data</button>
+      </div>
+    </header>
+
+    <!-- ALERT / ERROR BANNER -->
+    <div id="errorBanner" class="alert-banner hidden">
+      <span>⚠️ Unable to load dashboard data from backend server.</span>
+      <button id="retryBtn" class="btn btn-outline-sm">Retry</button>
+    </div>
+
+    <!-- MAIN CONTENT AREA -->
+    <main id="mainContent" class="main-content">
+
+      <!-- TOTAL SPENDING & QUICK STATS -->
+      <section class="hero-grid">
+        <div class="stat-card total-card">
+          <div class="stat-card-header">
+            <span class="stat-title">Total Spending</span>
+            <span class="stat-badge">Lifetime</span>
+          </div>
+          <div class="stat-value-container">
+            <span class="currency-symbol">₹</span>
+            <span id="totalAmount" class="stat-value">0</span>
+          </div>
+          <p class="stat-footer">Tracked live from TelePaisa Telegram Bot</p>
+        </div>
+
+        <div class="stat-card categories-pill-card">
+          <div class="stat-card-header">
+            <span class="stat-title">Active Categories (11)</span>
+          </div>
+          <div class="category-pills">
+            <span class="cat-pill cat-education">🎓 Education</span>
+            <span class="cat-pill cat-food">🍔 Food</span>
+            <span class="cat-pill cat-travel">🚗 Travel</span>
+            <span class="cat-pill cat-shopping">🛍️ Shopping</span>
+            <span class="cat-pill cat-bills">💡 Bills</span>
+            <span class="cat-pill cat-entertainment">🎬 Entertainment</span>
+            <span class="cat-pill cat-health">🩺 Health</span>
+            <span class="cat-pill cat-subscriptions">📺 Subscriptions</span>
+            <span class="cat-pill cat-personal_care">🧴 Personal Care</span>
+            <span class="cat-pill cat-recharge">📱 Recharge</span>
+            <span class="cat-pill cat-general">📦 General</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHARTS SECTION -->
+      <section class="charts-grid">
+        <!-- CATEGORY PIE/DOUGHNUT CHART -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h2>Category Breakdown</h2>
+            <p class="card-sub">Spending across expense categories</p>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="categoryChart"></canvas>
+            <div id="categoryEmpty" class="empty-state hidden">No category data available</div>
+          </div>
+        </div>
+
+        <!-- MONTHLY TREND LINE CHART -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h2>Monthly Spending Trend</h2>
+            <p class="card-sub">Historical monthly totals</p>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="trendChart"></canvas>
+            <div id="trendEmpty" class="empty-state hidden">No monthly trend data available</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BUDGET OVERVIEW SECTION -->
+      <section class="card budget-card">
+        <div class="card-header">
+          <h2>Monthly Budget Progress</h2>
+          <p class="card-sub">Track category limits set via /budget command</p>
+        </div>
+        <div id="budgetList" class="budget-grid">
+          <!-- Dynamically populated budget items -->
+        </div>
+        <div id="budgetEmpty" class="empty-state hidden">
+          No monthly budgets configured. Use <code>/budget &lt;category&gt; &lt;amount&gt;</code> in Telegram to set one!
+        </div>
+      </section>
+
+      <!-- RECENT TRANSACTIONS SECTION -->
+      <section class="card recent-card">
+        <div class="card-header">
+          <h2>Recent Transactions</h2>
+          <p class="card-sub">Latest logged expenses</p>
+        </div>
+        <div class="table-responsive">
+          <table class="transactions-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Details / Merchant</th>
+                <th>Date</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="recentTbody">
+              <!-- Dynamically populated transaction rows -->
+            </tbody>
+          </table>
+          <div id="recentEmpty" class="empty-state hidden">
+            No transactions found for this user. Send a message to <strong>@TelePaisa_Bot</strong> on Telegram to log your first expense!
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- LOADING OVERLAY / SKELETON -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Fetching real-time financial data...</p>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>TelePaisa — AI-Powered Telegram Personal Finance Assistant</p>
+    </footer>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

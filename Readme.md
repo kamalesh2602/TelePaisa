@@ -1,26 +1,26 @@
 # TelePaisa - AI-Powered Telegram Personal Finance Assistant
 
-A full-stack personal finance assistant that enables conversational expense tracking through a Telegram Bot (`TelePaisa`), backed by Express.js, MongoDB, and a React + Tailwind CSS web analytics dashboard.
+A full-stack personal finance assistant that enables conversational expense tracking through a Telegram Bot (`TelePaisa`), backed by Express.js, MongoDB, and an integrated server-served HTML/CSS/JS analytics dashboard.
 
 ---
 
 ## Project Overview
 
-Managing personal finances often feels cumbersome when using rigid spreadsheet tools or manual entry apps. **TelePaisa** solves this problem by bringing expense tracking directly into Telegram. Users can log transactions using structured slash commands (e.g. `/budget food 5000`, `/summary`) or natural text messages (e.g. `"spent 300 on swiggy"`). All financial data is securely saved in MongoDB and visualized in real-time through an interactive web dashboard.
+Managing personal finances often feels cumbersome when using rigid spreadsheet tools or manual entry apps. **TelePaisa** solves this problem by bringing expense tracking directly into Telegram. Users can log transactions using structured slash commands (e.g. `/budget food 5000`, `/summary`), natural text messages (e.g. `"spent 300 on swiggy"`), or open the analytics dashboard using `/website`. All financial data is securely saved in MongoDB and visualized in real-time through an interactive web dashboard.
 
 ---
 
 ## Key Features
 
 - **Dual Telegram Transport Support**: Supports both **Local Polling** (for local development) and **HTTPS Webhooks** (for Render production deployment) via configuration.
-- **Structured Slash Commands & Native Menu**: Explicit commands (`/start`, `/help`, `/summary`, `/recent`, `/budget`, `/edit`, `/delete`) with native Telegram `/` popup menu auto-registration.
-- **Persistent Reply Keyboard & Natural Aliases**: Persistent 4-button keyboard (`💰 Summary`, `🕐 Recent`, `💳 Budget`, `❓ Help`) and case-insensitive natural aliases (`recent`, `summary`, `budget`, `help`).
+- **Structured Slash Commands & Native Menu**: Explicit commands (`/start`, `/help`, `/summary`, `/recent`, `/budget`, `/edit`, `/delete`, `/website`) with native Telegram `/` popup menu auto-registration.
+- **Persistent Reply Keyboard & Natural Aliases**: Persistent 4-button keyboard (`💰 Summary`, `🕐 Recent`, `💳 Budget`, `❓ Help`) and case-insensitive natural aliases (`recent`, `summary`, `budget`, `help`, `website`).
 - **Scalable Paginated Recent Transactions**: Paginated `/recent` transactions (5 per page) with in-place message updating (`[ ◀ Previous ]` / `[ Next ▶ ]`) and inline action buttons (`[✏️ Edit]` / `[🗑 Delete]`).
 - **Zero-Value Expense Safeguard**: Intercepts command aliases and non-numeric messages to prevent invalid ₹0 expense creation.
 - **Hybrid Expense Parsing & Expanded Categories**: Intelligent transaction extraction supporting 11 categories (`food`, `travel`, `shopping`, `education`, `bills`, `entertainment`, `health`, `subscriptions`, `personal_care`, `recharge`, `general`) with special detection for college student expenses.
 - **Multi-User Data Isolation**: Secure data partitioning based on unique Telegram Chat IDs (`msg.chat.id`), ensuring user records remain completely private.
 - **Monthly Budgeting & Alerts**: Category-based monthly limit setting with instant over-budget warning notifications.
-- **Web Analytics Dashboard**: Interactive React + Tailwind CSS dashboard built with Recharts displaying total spending, monthly trends, category pie charts, budget progress bars, and recent transactions.
+- **Server-Served Web Analytics Dashboard**: Lightweight HTML, CSS, and Vanilla JavaScript dashboard served directly by Express at `GET /dashboard` using Chart.js visualization.
 - **Render Production Deployment Ready**: Auto-registers Telegram webhook on startup, validates Telegram secret tokens (`x-telegram-bot-api-secret-token`), and dynamically binds to Render `$PORT`.
 - **CI/CD Pipeline**: GitHub Actions workflow verifying backend syntax and frontend production builds.
 

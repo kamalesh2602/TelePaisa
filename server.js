@@ -4,21 +4,32 @@ console.log("KEY:", process.env.GEMINI_API_KEY);
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import TelegramBot from "node-telegram-bot-api";
 import { parseExpense } from "./services/aiParser.js";
 import { detectCategory } from "./constants/categories.js";
 import Expense from "./models/Expense.js";
 import Budget from "./models/Budget.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------- DB ----------------
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.log(err));
+
+// ---------------- DASHBOARD ROUTE ----------------
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "dashboard", "index.html"));
+});
 
 // ---------------- TEST ----------------
 app.get("/", (req, res) => {
@@ -101,6 +112,14 @@ function normalizeCommandAlias(rawText) {
     clean === "show my budget"
   ) {
     return "/budget";
+  }
+  if (
+    clean === "website" ||
+    clean === "dashboard" ||
+    clean === "analytics" ||
+    clean === "open dashboard"
+  ) {
+    return "/website";
   }
 
   return null;
@@ -285,7 +304,8 @@ async function handleTelegramCommand(userId, commandText) {
         "• /budget - View monthly budget limits\n" +
         "• /budget <category> <amount> - Set a monthly budget\n" +
         "• /edit <num> <amount> [category] - Edit a transaction\n" +
-        "• /delete <num> - Delete a transaction\n\n" +
+        "• /delete <num> - Delete a transaction\n" +
+        "• /website - Open analytics dashboard\n\n" +
         "💬 Natural Language Examples:\n" +
         "• \"spent 300 on swiggy\"\n" +
         "• \"uber ride 200\"",
@@ -304,11 +324,25 @@ async function handleTelegramCommand(userId, commandText) {
         "• /budget <category> <amount> - Set monthly budget (e.g. /budget food 5000)\n" +
         "• /edit <num> <amount> [category] - Edit transaction (e.g. /edit 1 50 food)\n" +
         "• /delete <num> - Delete transaction (e.g. /delete 1)\n" +
+        "• /website - Open web analytics dashboard\n" +
         "• /help - Show this guide\n\n" +
         "💬 Natural Language Messages:\n" +
         "• \"spent 500 on food\"\n" +
         "• \"how much total\"",
       reply_markup: mainReplyKeyboard
+    };
+  }
+
+  if (command === "/website") {
+    const baseUrl = process.env.DASHBOARD_URL || "http://localhost:3000/dashboard";
+    const dashboardUrl = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}phone=${encodeURIComponent(userId)}`;
+    return {
+      text: "📊 Open your TelePaisa analytics dashboard:",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🌐 Open Dashboard", url: dashboardUrl }]
+        ]
+      }
     };
   }
 
@@ -548,7 +582,8 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
       { command: "help", description: "View help & usage guide" },
       { command: "summary", description: "View spending summary" },
       { command: "recent", description: "View recent transactions" },
-      { command: "budget", description: "View monthly budget limits" }
+      { command: "budget", description: "View monthly budget limits" },
+      { command: "website", description: "Open analytics dashboard" }
     ]).catch(err => console.error("Error setting Telegram commands:", err.message));
 
     const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
@@ -575,7 +610,8 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
       { command: "help", description: "View help & usage guide" },
       { command: "summary", description: "View spending summary" },
       { command: "recent", description: "View recent transactions" },
-      { command: "budget", description: "View monthly budget limits" }
+      { command: "budget", description: "View monthly budget limits" },
+      { command: "website", description: "Open analytics dashboard" }
     ]).catch(err => console.error("Error setting Telegram commands:", err.message));
 
     bot.deleteWebHook()
