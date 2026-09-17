@@ -4,6 +4,7 @@ console.log("KEY:", process.env.GEMINI_API_KEY);
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
+import TelegramBot from "node-telegram-bot-api";
 import { parseExpense } from "./services/aiParser.js";
 import Expense from "./models/Expense.js";
 import Budget from "./models/Budget.js";
@@ -60,143 +61,139 @@ function extractCategory(text) {
   return "general";
 }
 
-// ---------------- WEBHOOK ----------------
-app.post("/webhook", async (req, res) => {
-  const message = req.body.Body;
-  const phone = req.body.From.replace("whatsapp:", "");
+// ---------------- CORE FINANCE LOGIC ----------------
+async function processFinanceMessage(userId, message) {
+  console.log("\nIncoming message from user", userId, ":", message);
 
-  console.log("\nIncoming:", message);
+  // ================= SET BUDGET =================
+  if (isBudgetSet(message)) {
+    const amount = parseInt(message.match(/\d+/)?.[0] || 0);
+    const category = extractCategory(message);
 
-  try {
+    await Budget.findOneAndUpdate(
+      { phone: userId, category },
+      { limit: amount },
+      { upsert: true }
+    );
 
-    // ================= SET BUDGET =================
-    if (isBudgetSet(message)) {
-
-      const amount = parseInt(message.match(/\d+/)?.[0] || 0);
-      const category = extractCategory(message);
-
-      await Budget.findOneAndUpdate(
-        { phone, category },
-        { limit: amount },
-        { upsert: true }
-      );
-
-      return res.send(`
-        <Response>
-          <Message>✅ Budget set: ₹${amount} for ${category}</Message>
-        </Response>
-      `);
-    }
-
-    // ================= INSIGHTS =================
-    if (isInsightQuery(message)) {
-
-      const data = await Expense.aggregate([
-        { $match: { phone } },
-        {
-          $group: {
-            _id: "$category",
-            total: { $sum: "$amount" }
-          }
-        }
-      ]);
-
-      if (!data.length) {
-        return res.send(`
-          <Response>
-            <Message>No data yet. Start adding expenses.</Message>
-          </Response>
-        `);
-      }
-
-      const total = data.reduce((sum, i) => sum + i.total, 0);
-      const top = data.sort((a, b) => b.total - a.total)[0];
-
-      return res.send(`
-        <Response>
-          <Message>
-💰 Total: ₹${total}
-📊 Top: ${top._id} (₹${top.total})
-          </Message>
-        </Response>
-      `);
-    }
-
-    // ================= QUERY =================
-    if (!isExpense(message) && isQuery(message)) {
-
-      const total = await Expense.aggregate([
-        { $match: { phone } },
-        { $group: { _id: null, total: { $sum: "$amount" } } }
-      ]);
-
-      const amount = total[0]?.total || 0;
-
-      return res.send(`
-        <Response>
-          <Message>💰 You spent ₹${amount}</Message>
-        </Response>
-      `);
-    }
-
-    // ================= EXPENSE =================
-    const data = await parseExpense(message);
-
-    const expense = await Expense.create({
-      ...data,
-      phone
-    });
-
-    // 🔥 BUDGET CHECK
-    const budget = await Budget.findOne({
-      phone,
-      category: data.category
-    });
-
-    let alert = "";
-
-    if (budget) {
-      const total = await Expense.aggregate([
-        { $match: { phone, category: data.category } },
-        { $group: { _id: null, total: { $sum: "$amount" } } }
-      ]);
-
-      const spent = total[0]?.total || 0;
-      const percent = ((spent / budget.limit) * 100).toFixed(1);
-
-      alert = `\n⚠️ ${data.category}: ₹${spent}/${budget.limit} (${percent}%)`;
-
-      if (spent > budget.limit) {
-        alert += "\n🚨 Budget exceeded!";
-      }
-    }
-
-    return res.send(`
-      <Response>
-        <Message>
-✅ Added ₹${expense.amount} to ${expense.category}
-${alert}
-        </Message>
-      </Response>
-    `);
-
-  } catch (err) {
-    console.error(err);
-
-    return res.send(`
-      <Response>
-        <Message>❌ Couldn't understand. Try again.</Message>
-      </Response>
-    `);
+    return `✅ Budget set: ₹${amount} for ${category}`;
   }
-});
+
+  // ================= INSIGHTS =================
+  if (isInsightQuery(message)) {
+    const data = await Expense.aggregate([
+      { $match: { phone: userId } },
+      {
+        $group: {
+          _id: "$category",
+          total: { $sum: "$amount" }
+        }
+      }
+    ]);
+
+    if (!data.length) {
+      return "No data yet. Start adding expenses.";
+    }
+
+    const total = data.reduce((sum, i) => sum + i.total, 0);
+    const top = data.sort((a, b) => b.total - a.total)[0];
+
+    return `💰 Total: ₹${total}\n📊 Top: ${top._id} (₹${top.total})`;
+  }
+
+  // ================= QUERY =================
+  if (!isExpense(message) && isQuery(message)) {
+    const total = await Expense.aggregate([
+      { $match: { phone: userId } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    const amount = total[0]?.total || 0;
+
+    return `💰 You spent ₹${amount}`;
+  }
+
+  // ================= EXPENSE =================
+  const data = await parseExpense(message);
+
+  const expense = await Expense.create({
+    ...data,
+    phone: userId
+  });
+
+  // 🔥 BUDGET CHECK
+  const budget = await Budget.findOne({
+    phone: userId,
+    category: data.category
+  });
+
+  let alert = "";
+
+  if (budget) {
+    const total = await Expense.aggregate([
+      { $match: { phone: userId, category: data.category } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    const spent = total[0]?.total || 0;
+    const percent = ((spent / budget.limit) * 100).toFixed(1);
+
+    alert = `\n⚠️ ${data.category}: ₹${spent}/${budget.limit} (${percent}%)`;
+
+    if (spent > budget.limit) {
+      alert += "\n🚨 Budget exceeded!";
+    }
+  }
+
+  return `✅ Added ₹${expense.amount} to ${expense.category}${alert}`;
+}
+
+// ---------------- TELEGRAM BOT (POLLING) ----------------
+const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+
+if (telegramToken && telegramToken !== "your_telegram_bot_token") {
+  const bot = new TelegramBot(telegramToken, { polling: true });
+  console.log("Telegram Bot initialized with polling 🤖");
+
+  // Handle /start command
+  bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const welcomeText =
+      "👋 Welcome to your AI Personal Finance Assistant!\n\n" +
+      "Here is how you can use me:\n" +
+      "• Track expense: \"spent 300 on swiggy\"\n" +
+      "• Set budget: \"set budget 5000 food\"\n" +
+      "• Check total: \"how much spent\"\n" +
+      "• Summary: \"spending summary\"";
+    bot.sendMessage(chatId, welcomeText);
+  });
+
+  // Handle regular text messages
+  bot.on("message", async (msg) => {
+    if (!msg.text || msg.text.startsWith("/")) return;
+
+    const chatId = msg.chat.id.toString();
+    try {
+      const response = await processFinanceMessage(chatId, msg.text);
+      bot.sendMessage(chatId, response);
+    } catch (err) {
+      console.error("Telegram message processing error:", err);
+      bot.sendMessage(chatId, "❌ Couldn't understand. Try again.");
+    }
+  });
+} else {
+  console.log("TELEGRAM_BOT_TOKEN not provided or default. Telegram polling inactive.");
+}
+
+// ---------------- DASHBOARD API ENDPOINTS ----------------
+
+function extractUserIdentifier(req) {
+  const raw = req.query.phone || req.query.userId || req.query.chatId || "";
+  return decodeURIComponent(raw);
+}
 
 app.get("/api/summary", async (req, res) => {
-  let phone = req.query.phone;
-
-  phone = decodeURIComponent(phone); // 🔥 FIX
-
-  console.log("Correct phone:", phone);
+  const phone = extractUserIdentifier(req);
 
   const total = await Expense.aggregate([
     { $match: { phone } },
@@ -215,9 +212,7 @@ app.get("/api/summary", async (req, res) => {
 });
 
 app.get("/api/trend", async (req, res) => {
-  let phone = req.query.phone;
-
-  phone = decodeURIComponent(phone); // 🔥 FIX
+  const phone = extractUserIdentifier(req);
 
   const trend = await Expense.aggregate([
     { $match: { phone } },
@@ -235,19 +230,14 @@ app.get("/api/trend", async (req, res) => {
   res.json(trend);
 });
 
-
 app.get("/api/budgets", async (req, res) => {
-
-  let phone = req.query.phone;
-
-  phone = decodeURIComponent(phone);
+  const phone = extractUserIdentifier(req);
 
   const budgets = await Budget.find({ phone });
 
   const result = [];
 
   for (const budget of budgets) {
-
     const total = await Expense.aggregate([
       {
         $match: {
@@ -276,12 +266,8 @@ app.get("/api/budgets", async (req, res) => {
   res.json(result);
 });
 
-
 app.get("/api/recent", async (req, res) => {
-
-  let phone = req.query.phone;
-
-  phone = decodeURIComponent(phone);
+  const phone = extractUserIdentifier(req);
 
   const transactions = await Expense.find({ phone })
     .sort({ createdAt: -1 })

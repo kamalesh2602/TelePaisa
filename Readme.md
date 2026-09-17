@@ -1,280 +1,257 @@
-### AI-Powered WhatsApp Finance Assistant
-### MERN Stack • Twilio WhatsApp API • MongoDB • React Dashboard
+# AI-Powered Telegram Personal Finance Assistant
+
+A full-stack personal finance assistant that enables conversational expense tracking through a Telegram Bot, backed by Express.js, MongoDB, and a React + Tailwind CSS web analytics dashboard.
+
+---
+
+## Project Overview
+
+The AI-Powered Telegram Personal Finance Assistant simplifies tracking expenses, monitoring budgets, and receiving instant financial insights. Users interact with the bot directly via Telegram using natural messages like `"spent 300 on swiggy"` or `"set budget 5000 food"`. All financial transactions and budget limits are stored securely in MongoDB and visualized in real time via a web analytics dashboard.
+
+---
+
+## Features
+
+- **Telegram Bot Messaging**: Seamless conversational expense tracking via Telegram polling.
+- **Multi-User Data Isolation**: Automatic per-user expense and budget isolation using unique Telegram user/chat IDs.
+- **Hybrid Expense Parsing**: Intelligent expense extraction combining AI-assisted parsing (Google Gemini API) and rule-based fallback regex mapping.
+- **Budget Monitoring & Alerts**: Set category spending limits and receive instant warning alerts when approaching or exceeding budgets.
+- **Financial Analytics & Queries**: Ask for total spending or category summaries directly inside Telegram.
+- **Web Analytics Dashboard**: Visualize spending trends, category breakdowns, budget limits, and recent transactions with Recharts and Tailwind CSS.
+- **CI/CD Integration**: Automated syntax checks and production build checks via GitHub Actions.
+
+---
+
+## Telegram Bot & Multi-User Behavior
+
+### How Multi-User Data Isolation Works
+When a user interacts with the Telegram bot:
+1. Each message is tagged with the user's unique Telegram `msg.chat.id`.
+2. All database records (`Expense` and `Budget` documents) use this unique identifier.
+3. Database queries, summaries, budget checks, and dashboard metrics strictly filter by `chat.id`.
+4. **Data Privacy**: Expenses, budgets, and spending totals created by User A are strictly isolated and never visible or accessible to User B.
+
+### Making the Bot Shareable
+Anyone can use the bot without any user-side configuration or manual onboarding:
+1. Share the Telegram Bot link (e.g., `https://t.me/your_bot_username`) or username with any user.
+2. The user opens Telegram, taps **Start** (`/start`), and begins logging expenses immediately.
+3. Their financial data is isolated automatically based on their Telegram Chat ID.
+
+---
+
+## Supported Telegram Commands & Message Formats
+
+The bot supports the following commands and natural text message patterns:
+
+### 1. Welcome & Help Command (`/start`)
+- **Format**: `/start`
+- **Description**: Displays a welcome message and quick reference guide on how to track expenses and set budgets.
+
+### 2. Adding an Expense
+- **Formats**:
+  - `spent 300 on swiggy`
+  - `uber ride 200`
+  - `amazon prime subscription 500`
+  - `150 for coffee`
+- **Description**: Parses the amount, merchant, and category, saves the transaction, and returns a confirmation message with any applicable budget status alerts.
+
+### 3. Asking for Total Spending
+- **Formats**:
+  - `how much spent`
+  - `total spend`
+  - `how much total`
+- **Description**: Calculates and returns the total cumulative spending for the user.
+
+### 4. Category Breakdown & Insights
+- **Formats**:
+  - `spending summary`
+  - `insight`
+  - `how is my spending`
+- **Description**: Returns total spending along with a breakdown of the top spending category.
+
+### 5. Setting & Monitoring Budgets
+- **Formats**:
+  - `set budget 5000 food`
+  - `budget 2000 travel`
+  - `shopping budget 3000`
+- **Description**: Creates or updates a spending budget limit for the specified category (`food`, `travel`, `shopping`, or `general`). Subsequent expense entries check against this limit and send alerts if exceeded.
+
+---
+
+## System Architecture
+
+```text
+Telegram User (Mobile / Desktop)
+       │
+       ▼ (Long Polling via node-telegram-bot-api)
+Express.js Backend Server
+       │
+       ├─────────────────────────┐
+       ▼                         ▼
+Google Gemini / Fallback   MongoDB Database
+Expense Parser             (Expenses & Budgets)
+                                 │
+                                 ▼
+                         React Dashboard
+                         (Recharts + Tailwind)
 ```
-• Built a full-stack personal finance assistant enabling conversational expense tracking through WhatsApp using Twilio webhook integration and Express.js backend services.
-• Designed a hybrid expense parsing pipeline combining rule-based categorization, regex extraction, and AI-assisted parsing architecture for intelligent transaction classification.
-• Developed a React + Tailwind CSS analytics dashboard featuring spending trends, category-wise visualizations, budget tracking, and recent transaction monitoring using Recharts.
-• Implemented MongoDB aggregation pipelines for monthly spending analysis, trend computation, category summaries, and real-time financial insights with GitHub Actions CI workflow integration.
-```
-
-# AI-Powered WhatsApp Finance Assistant
-
-A full-stack personal finance assistant that enables conversational expense tracking through WhatsApp using Twilio webhook integration, MongoDB analytics, and a React dashboard for visualization.
 
 ---
 
-# Features
+## Tech Stack
 
-* WhatsApp-based expense tracking
-* Conversational transaction input
-* Budget monitoring and alerts
-* Monthly spending analytics
-* Category-wise expense visualization
-* Recent transaction tracking
-* React + Tailwind dashboard
-* MongoDB aggregation pipelines
-* GitHub Actions CI workflow
+### Frontend
+- **React** (Vite framework)
+- **Tailwind CSS** (Styling)
+- **Recharts** (Data Visualization)
+- **Axios** (API requests)
 
----
+### Backend
+- **Node.js & Express.js**
+- **node-telegram-bot-api** (Telegram Bot API integration via long polling)
+- **Mongoose & MongoDB** (Data persistence & aggregation pipelines)
+- **@google/generative-ai** (Expense parsing)
 
-# Tech Stack
-
-## Frontend
-
-* React
-* Tailwind CSS
-* Recharts
-
-## Backend
-
-* Node.js
-* Express.js
-
-## Database
-
-* MongoDB Atlas
-
-## Integrations
-
-* Twilio WhatsApp Sandbox
-* ngrok
-
-## DevOps
-
-* GitHub Actions
+### DevOps
+- **GitHub Actions** (CI pipeline)
 
 ---
 
-# System Architecture
-
-WhatsApp User
-↓
-Twilio Webhook
-↓
-Express Backend
-↓
-MongoDB Database
-↓
-React Dashboard
-
----
-
-# Project Structure
+## Project Structure
 
 ```text
 whatsapp-ai-finance-bot/
-│
-├── controllers/
 ├── models/
+│   ├── Budget.js           # Mongoose schema for user budgets
+│   └── Expense.js          # Mongoose schema for user expenses
 ├── services/
+│   └── aiParser.js         # Hybrid AI/fallback expense parsing service
 ├── dashboard/
-├── .github/workflows/
-├── server.js
-├── package.json
-└── README.md
+│   ├── src/
+│   │   ├── App.jsx         # React Analytics Dashboard main component
+│   │   └── main.jsx
+│   ├── package.json
+│   └── vite.config.js
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions CI pipeline
+├── .env.example            # Environment variables template
+├── server.js               # Express server & Telegram Bot polling listener
+├── package.json            # Root dependencies & scripts
+└── README.md               # Project documentation
 ```
 
 ---
 
-# Installation & Setup
+## Environment Variables
 
-## 1. Clone Repository
-
-```bash
-git clone https://github.com/kamalesh2602/whatsapp-ai-finance-bot.git
-
-cd whatsapp-ai-finance-bot
-```
-
----
-
-# Backend Setup
-
-## 2. Install Backend Dependencies
-
-```bash
-npm install
-```
-
----
-
-## 3. Create `.env` File
-
-Create a `.env` file in the root directory.
+Create a `.env` file in the root directory:
 
 ```env
-MONGO_URI=your_mongodb_uri
-GEMINI_API_KEY=your_gemini_key
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
+GEMINI_API_KEY=your_gemini_api_key
+MONGO_URI=mongodb://localhost:27017/whatsapp-finance-bot
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 ```
 
----
-
-## 4. Start Backend Server
-
-```bash
-node server.js
-```
-
-Backend runs on:
-
-```text
-http://localhost:3000
-```
-
----
-
-# Frontend Setup
-
-## 5. Go to Dashboard Folder
-
-```bash
-cd dashboard
-```
-
----
-
-## 6. Install Frontend Dependencies
-
-```bash
-npm install
-```
-
----
-
-## 7. Create Frontend `.env`
-
-Inside `dashboard/.env`
+Create a `.env` file inside `dashboard/.env`:
 
 ```env
-VITE_PHONE_NUMBER=%2B<phonenumber>
+VITE_PHONE_NUMBER=your_telegram_chat_id
 ```
 
 ---
 
-## 8. Start Frontend
+## Setup & Installation
 
-```bash
-npm run dev
-```
-
-Frontend runs on:
-
-```text
-http://localhost:5173
-```
+### 1. Prerequisites
+- Node.js (v18+)
+- MongoDB (Local instance or MongoDB Atlas URI)
+- A Telegram Account
 
 ---
 
-# Twilio WhatsApp Setup
-
-## 9. Start ngrok
-
-In a new terminal:
-
-```bash
-ngrok http 3000
-```
-
-Copy the generated HTTPS URL.
-
-Example:
-
-```text
-https://abcd1234.ngrok-free.app
-```
+### 2. Telegram Bot setup (via BotFather)
+1. Open Telegram and search for `@BotFather`.
+2. Send `/newbot` to BotFather.
+3. Enter a name for your bot (e.g., `My Finance Assistant`).
+4. Enter a unique username ending in `bot` (e.g., `MyPersonalFinance_bot`).
+5. BotFather will generate an **HTTP API Token** (e.g., `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`).
+6. Copy this token into your `.env` file as `TELEGRAM_BOT_TOKEN`.
 
 ---
 
-## 10. Configure Twilio Sandbox Webhook
-
-Go to Twilio WhatsApp Sandbox settings.
-
-Paste:
-
-```text
-https://your-ngrok-url/webhook
-```
-
-Example:
-
-```text
-https://abcd1234.ngrok-free.app/webhook
-```
-
-Set method as:
-
-```text
-POST
-```
+### 3. Backend Setup & Execution
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/kamalesh2602/whatsapp-ai-finance-bot.git
+   cd whatsapp-ai-finance-bot
+   ```
+2. Install root dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the backend server:
+   ```bash
+   npm start
+   ```
+   The backend server will run on `http://localhost:3000` and start Telegram Bot long polling.
 
 ---
 
-# Usage
-
-Send messages through WhatsApp sandbox:
-
-```text
-Spent 500 on food
-Uber ride 200
-Netflix subscription 300
-```
-
-The bot:
-
-* parses expenses
-* stores transactions in MongoDB
-* updates dashboard analytics
-
----
-
-# Dashboard Features
-
-* Total spending overview
-* Budget tracking cards
-* Monthly spending trends
-* Category breakdown charts
-* Recent transaction history
+### 4. React Dashboard Setup & Execution
+1. Navigate to the dashboard directory:
+   ```bash
+   cd dashboard
+   ```
+2. Install dashboard dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure `dashboard/.env` with your Telegram `chat.id`:
+   ```env
+   VITE_PHONE_NUMBER=your_telegram_chat_id
+   ```
+4. Start the frontend development server:
+   ```bash
+   npm run dev
+   ```
+   Access the dashboard in your browser at `http://localhost:5173`.
 
 ---
 
-# CI/CD
+## Dashboard Features
 
-GitHub Actions workflow included for:
-
-* backend syntax validation
-* frontend production build checks
-* automated dependency installation
-
-Workflow file:
-
-```text
-.github/workflows/ci.yml
-```
+- **Total Spending Card**: Real-time aggregation of total expenses.
+- **Budget Tracking Cards**: Visual progress bars showing current category spend vs limit with percentage warnings.
+- **Monthly Spending Trends**: Interactive line chart showing month-over-month expenditure trends using Recharts.
+- **Category Breakdown Chart**: Interactive pie chart displaying proportional spending across categories.
+- **Recent Transaction Log**: Detailed table listing recent transactions.
 
 ---
 
-# Future Improvements
+## CI/CD Pipeline
 
-* AI-generated financial insights
-* User authentication
-* Cloud deployment
-* Multi-user support
-* Smart spending recommendations
+The project includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that automatically runs on pushes and pull requests to `main`:
+- Checks backend syntax (`node --check server.js`)
+- Installs frontend dependencies and verifies production build compilation (`npm run build`)
 
 ---
 
-# Author
+## Current Limitations
+
+- **Local Polling**: Long polling requires the Node process to stay active locally.
+- **AI Service Key Dependency**: If the Gemini API key is invalid or unset, the system seamlessly falls back to rule-based keyword & regex parsing.
+
+---
+
+## Future Improvements
+
+- Deploy Telegram Bot using Webhooks on cloud hosting (e.g., Render, Railway, Vercel).
+- Add support for custom budget duration (weekly, monthly).
+- Provide export options for user financial data (CSV/PDF reports via Telegram).
+
+---
+
+## Author
 
 Kamalesh G
