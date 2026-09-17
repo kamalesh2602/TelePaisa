@@ -291,41 +291,98 @@ async function handleTelegramCommand(userId, commandText) {
   return "❓ Unknown command. Type /help to see all available commands.";
 }
 
-// ---------------- TELEGRAM BOT (POLLING) ----------------
+// ---------------- TELEGRAM MESSAGE DISPATCHER ----------------
+async function handleIncomingTelegramMessage(botInstance, msg) {
+  if (!msg || !msg.text) return;
+
+  const chatId = msg.chat.id.toString();
+  const text = msg.text.trim();
+
+  if (text.startsWith("/")) {
+    try {
+      const response = await handleTelegramCommand(chatId, text);
+      await botInstance.sendMessage(msg.chat.id, response);
+    } catch (err) {
+      console.error("Telegram command processing error:", err);
+      await botInstance.sendMessage(msg.chat.id, "❌ Error executing command. Try /help");
+    }
+  } else {
+    try {
+      const response = await processFinanceMessage(chatId, text);
+      await botInstance.sendMessage(msg.chat.id, response);
+    } catch (err) {
+      console.error("Telegram message processing error:", err);
+      await botInstance.sendMessage(msg.chat.id, "❌ Couldn't understand. Try again.");
+    }
+  }
+}
+
+// ---------------- TELEGRAM BOT SETUP (POLLING vs WEBHOOK) ----------------
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+const telegramMode = (process.env.TELEGRAM_MODE || "polling").toLowerCase();
+let bot = null;
 
 if (telegramToken && telegramToken !== "your_telegram_bot_token") {
-  const bot = new TelegramBot(telegramToken, { polling: true });
-  console.log("Telegram Bot initialized with polling 🤖");
+  if (telegramMode === "webhook") {
+    // Webhook mode (no polling)
+    bot = new TelegramBot(telegramToken);
+    console.log("Telegram Bot initialized in WEBHOOK mode 🌐");
 
-  // Handle all incoming text messages & commands
-  bot.on("message", async (msg) => {
-    if (!msg.text) return;
+    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
 
-    const chatId = msg.chat.id.toString();
-    const text = msg.text.trim();
-
-    if (text.startsWith("/")) {
-      try {
-        const response = await handleTelegramCommand(chatId, text);
-        bot.sendMessage(msg.chat.id, response);
-      } catch (err) {
-        console.error("Telegram command processing error:", err);
-        bot.sendMessage(msg.chat.id, "❌ Error executing command. Try /help");
-      }
+    if (webhookUrl) {
+      const webhookOptions = secretToken ? { secret_token: secretToken } : {};
+      bot.setWebHook(webhookUrl, webhookOptions)
+        .then(() => console.log(`Telegram webhook registered at: ${webhookUrl}`))
+        .catch(err => console.error("Error setting Telegram webhook:", err.message));
     } else {
+      console.warn("TELEGRAM_MODE is webhook, but TELEGRAM_WEBHOOK_URL is not configured.");
+    }
+  } else {
+    // Polling mode (default for local dev)
+    bot = new TelegramBot(telegramToken, { polling: true });
+    console.log("Telegram Bot initialized in POLLING mode 🤖");
+
+    bot.deleteWebHook()
+      .then(() => console.log("Cleared active Telegram webhook for polling mode."))
+      .catch(err => console.error("Error deleting Telegram webhook:", err.message));
+
+    bot.on("message", async (msg) => {
+      await handleIncomingTelegramMessage(bot, msg);
+    });
+  }
+} else {
+  console.log("TELEGRAM_BOT_TOKEN not provided or default. Telegram bot inactive.");
+}
+
+// ---------------- TELEGRAM WEBHOOK ENDPOINT ----------------
+app.post("/telegram/webhook", async (req, res) => {
+  // Validate secret token if TELEGRAM_SECRET_TOKEN is set
+  const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
+  if (secretToken) {
+    const headerToken = req.headers["x-telegram-bot-api-secret-token"];
+    if (headerToken !== secretToken) {
+      console.warn("Unauthorized Telegram webhook request: secret token mismatch");
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+  }
+
+  // Respond immediately with HTTP 200 OK to Telegram
+  res.sendStatus(200);
+
+  const update = req.body;
+  if (update && (update.message || update.edited_message)) {
+    const msg = update.message || update.edited_message;
+    if (bot) {
       try {
-        const response = await processFinanceMessage(chatId, text);
-        bot.sendMessage(msg.chat.id, response);
+        await handleIncomingTelegramMessage(bot, msg);
       } catch (err) {
-        console.error("Telegram message processing error:", err);
-        bot.sendMessage(msg.chat.id, "❌ Couldn't understand. Try again.");
+        console.error("Error handling Telegram webhook message:", err);
       }
     }
-  });
-} else {
-  console.log("TELEGRAM_BOT_TOKEN not provided or default. Telegram polling inactive.");
-}
+  }
+});
 
 // ---------------- DASHBOARD API ENDPOINTS ----------------
 
@@ -418,7 +475,8 @@ app.get("/api/recent", async (req, res) => {
   res.json(transactions);
 });
 
-// ---------------- START ----------------
-app.listen(3000, () => {
-  console.log("Server running on port 3000 🚀");
+// ---------------- START SERVER ----------------
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} 🚀`);
 });

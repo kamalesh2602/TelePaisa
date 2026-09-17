@@ -12,32 +12,35 @@ Managing personal finances often feels cumbersome when using rigid spreadsheet t
 
 ## Key Features
 
-- **Telegram Bot Integration**: Multi-user conversational interface running on Node.js using long polling.
+- **Dual Telegram Transport Support**: Supports both **Local Polling** (for local development) and **HTTPS Webhooks** (for Render production deployment) via configuration.
 - **Structured Slash Commands**: Explicit commands (`/start`, `/help`, `/summary`, `/recent`, `/budget`) with input validation and usage guidance.
 - **Hybrid Expense Parsing**: Intelligent transaction extraction combining Google Gemini AI API parsing with a rule-based fallback keyword and regex parser.
 - **Multi-User Data Isolation**: Secure data partitioning based on unique Telegram Chat IDs (`msg.chat.id`), ensuring user records remain completely private.
 - **Monthly Budgeting & Alerts**: Category-based monthly limit setting with instant over-budget warning notifications.
 - **Web Analytics Dashboard**: Interactive React + Tailwind CSS dashboard built with Recharts displaying total spending, monthly trends, category pie charts, budget progress bars, and recent transactions.
+- **Render Production Deployment Ready**: Auto-registers Telegram webhook on startup, validates Telegram secret tokens (`x-telegram-bot-api-secret-token`), and dynamically binds to Render `$PORT`.
 - **CI/CD Pipeline**: GitHub Actions workflow verifying backend syntax and frontend production builds.
 
 ---
 
 ## System Architecture
 
+### 1. Webhook Mode (Production / Render)
 ```text
-Telegram User (Mobile / Desktop)
-       │
-       ▼ (Long Polling via node-telegram-bot-api)
-Express.js Backend Server
-       │
-       ├─────────────────────────┐
-       ▼                         ▼
-Google Gemini / Fallback   MongoDB Database
-Expense Parser             (Expenses & Budgets)
-                                 │
-                                 ▼
-                         React Dashboard
-                         (Recharts + Tailwind)
+Telegram User ──> Telegram Servers ──> HTTPS POST /telegram/webhook ──> Render Express Backend
+                                                                               │
+                                                                   ┌───────────┴───────────┐
+                                                                   ▼                       ▼
+                                                            Gemini / Fallback       MongoDB Database
+                                                             Expense Parser        (Expenses & Budgets)
+                                                                                           │
+                                                                                           ▼
+                                                                                    React Dashboard
+```
+
+### 2. Polling Mode (Local Development)
+```text
+Telegram User ──> Telegram Servers <── Long Polling (node-telegram-bot-api) ──> Local Express Server
 ```
 
 ---
@@ -54,7 +57,7 @@ Expense Parser             (Expenses & Budgets)
 
 ### Backend
 - **Node.js & Express.js**
-- **node-telegram-bot-api** (Telegram Bot API integration via long polling)
+- **node-telegram-bot-api** (Telegram Bot API integration with polling & webhook support)
 - **Mongoose & MongoDB** (Database ORM & aggregation pipelines)
 - **@google/generative-ai** (AI expense parsing)
 
@@ -65,103 +68,99 @@ Expense Parser             (Expenses & Budgets)
 - **Axios** (REST API integration)
 
 ### DevOps & Tools
+- **Render** (Cloud deployment)
 - **GitHub Actions** (CI pipeline)
 - **dotenv** (Environment variable management)
 
 ---
 
-## Project Structure
-
-```text
-whatsapp-ai-finance-bot/
-├── models/
-│   ├── Budget.js           # Mongoose schema for user budgets
-│   └── Expense.js          # Mongoose schema for user expenses
-├── services/
-│   └── aiParser.js         # Hybrid AI/fallback expense parsing service
-├── dashboard/
-│   ├── src/
-│   │   ├── App.jsx         # React Analytics Dashboard main component
-│   │   └── main.jsx
-│   ├── package.json
-│   └── vite.config.js
-├── .github/
-│   └── workflows/
-│       └── ci.yml          # GitHub Actions CI workflow
-├── DOCUMENTATION.md        # Telegram Bot user manual
-├── Readme.md               # Developer documentation & project guide
-├── .env.example            # Backend environment template
-├── server.js               # Express server & Telegram Bot polling dispatcher
-└── package.json            # Root dependencies & scripts
-```
-
----
-
-## Prerequisites
-
-- Node.js (v18 or higher)
-- MongoDB (Local instance or MongoDB Atlas connection string)
-- A Telegram Account (to configure a bot via `@BotFather`)
-
----
-
 ## Environment Variables
 
-Create a `.env` file in the root directory:
+### Root `.env` (Backend Server)
 
-```env
-GEMINI_API_KEY=your_gemini_api_key
-MONGO_URI=mongodb://localhost:27017/whatsapp-finance-bot
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-```
+| Variable | Description | Example / Default | Required |
+| :--- | :--- | :--- | :--- |
+| `MONGO_URI` | MongoDB Atlas / Local connection string | `mongodb://localhost:27017/whatsapp-finance-bot` | Yes |
+| `TELEGRAM_BOT_TOKEN` | HTTP API Token from Telegram BotFather | `123456789:ABCdef...` | Yes |
+| `TELEGRAM_MODE` | Bot transport mode (`polling` or `webhook`) | `polling` (Local) / `webhook` (Render) | No (Default: `polling`) |
+| `TELEGRAM_WEBHOOK_URL` | Public HTTPS Webhook endpoint on Render | `https://<service>.onrender.com/telegram/webhook` | Required in Webhook mode |
+| `TELEGRAM_SECRET_TOKEN` | Secret token to authenticate Telegram updates | `my_secret_token_123` | Optional (Recommended for Webhook) |
+| `GEMINI_API_KEY` | Google Gemini AI key | `AIzaSy...` | Optional (Uses fallback parser if unset) |
+| `PORT` | Dynamic HTTP server port | `3000` | Render sets automatically |
 
-Create a `.env` file in `dashboard/.env`:
-
+### Dashboard `.env` (`dashboard/.env`)
 ```env
 VITE_PHONE_NUMBER=your_telegram_chat_id
 ```
 
 ---
 
-## Setup & Installation
+## Local Development (Polling Mode)
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/kamalesh2602/whatsapp-ai-finance-bot.git
-cd whatsapp-ai-finance-bot
-```
-
-### 2. Telegram Bot Setup (via BotFather)
-1. Open Telegram and search for `@BotFather`.
-2. Send `/newbot` and follow the prompts to choose a Bot Name and Username.
-3. Copy the generated **HTTP API Token**.
-4. Set `TELEGRAM_BOT_TOKEN=<your_token>` in your root `.env` file.
-
-### 3. Backend Setup & Execution
-1. Install root dependencies:
+1. Clone repository & install dependencies:
    ```bash
+   git clone https://github.com/kamalesh2602/whatsapp-ai-finance-bot.git
+   cd whatsapp-ai-finance-bot
    npm install
    ```
-2. Start the Express server and Telegram polling:
+2. Create root `.env`:
+   ```env
+   MONGO_URI=mongodb://localhost:27017/whatsapp-finance-bot
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+   TELEGRAM_MODE=polling
+   ```
+3. Start local backend server:
    ```bash
    npm start
    ```
-   The backend will start listening on `http://localhost:3000` and initiate Telegram polling.
+   *Note: In polling mode, the backend automatically clears any previously registered webhooks to ensure smooth local operation.*
 
-### 4. React Dashboard Setup & Execution
-1. Navigate to the `dashboard` directory:
+4. Start React dashboard:
    ```bash
    cd dashboard
-   ```
-2. Install dashboard dependencies:
-   ```bash
    npm install
-   ```
-3. Start the Vite development server:
-   ```bash
    npm run dev
    ```
-   Open `http://localhost:5173` in your browser to view the analytics dashboard for the configured Telegram Chat ID.
+
+---
+
+## Production Deployment on Render (Webhook Mode)
+
+### Step 1: Create Web Service on Render
+1. Connect your GitHub repository to [Render](https://render.com).
+2. Choose **Web Service**.
+3. Configure settings:
+   - **Environment**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `node server.js` (or `npm start`)
+
+### Step 2: Add Environment Variables in Render Dashboard
+Add the following key-value pairs under **Environment** settings in Render:
+- `MONGO_URI` $\rightarrow$ `mongodb+srv://<user>:<password>@cluster.mongodb.net/finance-bot`
+- `TELEGRAM_BOT_TOKEN` $\rightarrow$ `<your_botfather_token>`
+- `TELEGRAM_MODE` $\rightarrow$ `webhook`
+- `TELEGRAM_WEBHOOK_URL` $\rightarrow$ `https://<your-render-service>.onrender.com/telegram/webhook`
+- `TELEGRAM_SECRET_TOKEN` $\rightarrow$ `<your_secret_token>` (Optional)
+
+### Step 3: Deploy & Verify
+1. Click **Deploy Web Service**.
+2. On boot, the server automatically calls Telegram API `setWebHook` to register `TELEGRAM_WEBHOOK_URL`.
+3. Check deployment logs:
+   ```text
+   Server running on port 10000 🚀
+   MongoDB connected
+   Telegram Bot initialized in WEBHOOK mode 🌐
+   Telegram webhook registered at: https://<service>.onrender.com/telegram/webhook
+   ```
+
+---
+
+## Checking Webhook Status
+
+To inspect your bot's Telegram webhook status, open the following URL in your browser or curl:
+```bash
+https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/getWebhookInfo
+```
 
 ---
 
@@ -176,21 +175,6 @@ For the complete Telegram bot user guide, command list, syntax examples, and nat
 Automated checks are configured in `.github/workflows/ci.yml`:
 - **Backend Job**: Runs `node --check server.js` to ensure syntax validity.
 - **Frontend Job**: Installs dashboard dependencies and runs `npm run build` to verify production compilation.
-
----
-
-## Current Limitations
-
-- **Long Polling Mode**: Local development uses Telegram polling; production deployments would benefit from Webhook integration.
-- **AI Key Dependency**: If `GEMINI_API_KEY` is invalid or unset, the system automatically falls back to rule-based regex parsing.
-
----
-
-## Future Improvements
-
-- Deploy Telegram Bot via Webhooks on cloud platforms (e.g. Render, Railway, Vercel).
-- Multi-currency support and conversion.
-- Automated monthly spending report exports (CSV/PDF) via Telegram.
 
 ---
 
