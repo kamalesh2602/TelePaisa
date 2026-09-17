@@ -150,18 +150,9 @@ body {
   margin-bottom: 1.5rem;
 }
 
-/* HERO GRID */
-.hero-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 1.5rem;
+/* HERO SECTION */
+.hero-section {
   margin-bottom: 2rem;
-}
-
-@media (max-width: 768px) {
-  .hero-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .stat-card {
