@@ -148,6 +148,149 @@ async function processFinanceMessage(userId, message) {
   return `✅ Added ₹${expense.amount} to ${expense.category}${alert}`;
 }
 
+// ---------------- TELEGRAM COMMAND DISPATCHER ----------------
+async function handleTelegramCommand(userId, commandText) {
+  const parts = commandText.trim().split(/\s+/);
+  const command = parts[0].toLowerCase();
+  const args = parts.slice(1);
+
+  if (command === "/start") {
+    return (
+      "👋 Welcome to your AI Personal Finance Assistant!\n\n" +
+      "Track expenses naturally or use slash commands:\n\n" +
+      "💡 Commands:\n" +
+      "• /help - View commands & usage guide\n" +
+      "• /summary - View total spending & category breakdown\n" +
+      "• /summary <category> - View spending for a specific category\n" +
+      "• /recent - View recent transactions\n" +
+      "• /budget - View monthly budget limits\n" +
+      "• /budget <category> <amount> - Set a monthly budget\n\n" +
+      "💬 Natural Language Examples:\n" +
+      "• \"spent 300 on swiggy\"\n" +
+      "• \"uber ride 200\""
+    );
+  }
+
+  if (command === "/help") {
+    return (
+      "📖 Available Commands:\n\n" +
+      "• /summary - Show total spend & category breakdown\n" +
+      "• /summary <category> - Show spend for specific category (e.g. /summary food)\n" +
+      "• /recent - Show last 5 transactions\n" +
+      "• /budget - Show current monthly budgets\n" +
+      "• /budget <category> <amount> - Set monthly budget (e.g. /budget food 5000)\n" +
+      "• /help - Show this guide\n\n" +
+      "💬 Natural Language Messages:\n" +
+      "• \"spent 500 on food\"\n" +
+      "• \"how much total\""
+    );
+  }
+
+  if (command === "/summary") {
+    if (args.length > 0) {
+      const category = args[0].toLowerCase();
+      const data = await Expense.aggregate([
+        { $match: { phone: userId, category } },
+        { $group: { _id: "$category", total: { $sum: "$amount" } } }
+      ]);
+
+      if (!data.length) {
+        return `No expenses found for category: ${category}`;
+      }
+
+      return `📊 ${category.toUpperCase()} Spending Summary:\n💰 Total Spent: ₹${data[0].total}`;
+    } else {
+      const data = await Expense.aggregate([
+        { $match: { phone: userId } },
+        { $group: { _id: "$category", total: { $sum: "$amount" } } }
+      ]);
+
+      if (!data.length) {
+        return "No data yet. Start adding expenses.";
+      }
+
+      const total = data.reduce((sum, i) => sum + i.total, 0);
+      const sorted = [...data].sort((a, b) => b.total - a.total);
+      const top = sorted[0];
+
+      let breakdown = data.map(i => `• ${i._id}: ₹${i.total}`).join("\n");
+
+      return `📊 Spending Summary:\n💰 Total Spent: ₹${total}\n\nCategories:\n${breakdown}\n\n🏆 Top Category: ${top._id} (₹${top.total})`;
+    }
+  }
+
+  if (command === "/recent") {
+    const transactions = await Expense.find({ phone: userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    if (!transactions.length) {
+      return "No recent transactions found.";
+    }
+
+    const list = transactions
+      .map((t, idx) => {
+        const dateStr = new Date(t.createdAt).toLocaleDateString();
+        const merchantInfo = t.merchant && t.merchant !== "unknown" ? ` (${t.merchant})` : "";
+        return `${idx + 1}. ₹${t.amount} on ${t.category}${merchantInfo} - ${dateStr}`;
+      })
+      .join("\n");
+
+    return `🕒 Recent Transactions:\n\n${list}`;
+  }
+
+  if (command === "/budget") {
+    if (args.length === 0) {
+      const budgets = await Budget.find({ phone: userId });
+
+      if (!budgets.length) {
+        return (
+          "No monthly budgets set yet.\n\n" +
+          "Usage: /budget <category> <amount>\n" +
+          "Example: /budget food 5000"
+        );
+      }
+
+      let resultList = [];
+      for (const budget of budgets) {
+        const total = await Expense.aggregate([
+          { $match: { phone: userId, category: budget.category } },
+          { $group: { _id: null, total: { $sum: "$amount" } } }
+        ]);
+
+        const spent = total[0]?.total || 0;
+        const percent = ((spent / budget.limit) * 100).toFixed(1);
+        const status = spent > budget.limit ? " 🚨 Exceeded!" : "";
+
+        resultList.push(`• ${budget.category}: ₹${spent} / ₹${budget.limit} (${percent}%)${status}`);
+      }
+
+      return `🎯 Monthly Budgets:\n\n${resultList.join("\n")}\n\nTo set/update a budget:\n/budget <category> <amount>`;
+    }
+
+    if (args.length === 2) {
+      const category = args[0].toLowerCase();
+      const amount = parseInt(args[1]);
+
+      if (isNaN(amount) || amount <= 0) {
+        return "⚠️ Invalid amount. Please specify a positive number.\n\nUsage: /budget <category> <amount>\nExample: /budget food 5000";
+      }
+
+      await Budget.findOneAndUpdate(
+        { phone: userId, category },
+        { limit: amount },
+        { upsert: true }
+      );
+
+      return `✅ Monthly budget set: ₹${amount} for ${category}`;
+    }
+
+    return "⚠️ Invalid syntax.\n\nUsage: /budget <category> <amount>\nExample: /budget food 5000";
+  }
+
+  return "❓ Unknown command. Type /help to see all available commands.";
+}
+
 // ---------------- TELEGRAM BOT (POLLING) ----------------
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -155,30 +298,29 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
   const bot = new TelegramBot(telegramToken, { polling: true });
   console.log("Telegram Bot initialized with polling 🤖");
 
-  // Handle /start command
-  bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    const welcomeText =
-      "👋 Welcome to your AI Personal Finance Assistant!\n\n" +
-      "Here is how you can use me:\n" +
-      "• Track expense: \"spent 300 on swiggy\"\n" +
-      "• Set budget: \"set budget 5000 food\"\n" +
-      "• Check total: \"how much spent\"\n" +
-      "• Summary: \"spending summary\"";
-    bot.sendMessage(chatId, welcomeText);
-  });
-
-  // Handle regular text messages
+  // Handle all incoming text messages & commands
   bot.on("message", async (msg) => {
-    if (!msg.text || msg.text.startsWith("/")) return;
+    if (!msg.text) return;
 
     const chatId = msg.chat.id.toString();
-    try {
-      const response = await processFinanceMessage(chatId, msg.text);
-      bot.sendMessage(chatId, response);
-    } catch (err) {
-      console.error("Telegram message processing error:", err);
-      bot.sendMessage(chatId, "❌ Couldn't understand. Try again.");
+    const text = msg.text.trim();
+
+    if (text.startsWith("/")) {
+      try {
+        const response = await handleTelegramCommand(chatId, text);
+        bot.sendMessage(msg.chat.id, response);
+      } catch (err) {
+        console.error("Telegram command processing error:", err);
+        bot.sendMessage(msg.chat.id, "❌ Error executing command. Try /help");
+      }
+    } else {
+      try {
+        const response = await processFinanceMessage(chatId, text);
+        bot.sendMessage(msg.chat.id, response);
+      } catch (err) {
+        console.error("Telegram message processing error:", err);
+        bot.sendMessage(msg.chat.id, "❌ Couldn't understand. Try again.");
+      }
     }
   });
 } else {
