@@ -1,6 +1,6 @@
-# Telegram Bot User Manual
+# TelePaisa - Telegram Bot User Manual
 
-Welcome to the **Personal Finance Assistant** Telegram Bot! This user manual explains how to set up, track expenses, manage monthly budgets, and query your spending insights using both Telegram slash commands and natural language messages.
+Welcome to the **TelePaisa** Telegram Bot (`@TelePaisa_Bot`)! This user manual explains how to set up, track expenses, manage monthly budgets, and query your spending insights using both Telegram slash commands and natural language messages.
 
 ---
 
@@ -8,7 +8,7 @@ Welcome to the **Personal Finance Assistant** Telegram Bot! This user manual exp
 
 Follow these simple steps to start tracking your expenses:
 
-1. **Open the Bot**: Search for your bot's username on Telegram or click the share link (e.g., `https://t.me/kamalesh_finance_bot`).
+1. **Open the Bot**: Search for `@TelePaisa_Bot` on Telegram or click the share link (`https://t.me/TelePaisa_Bot`).
 2. **Press Start**: Tap the **Start** button or send `/start` to receive your welcome message.
 3. **View Help**: Send `/help` anytime to inspect the list of available commands and natural language examples.
 4. **Start Adding Expenses**: Type any expense message like `spent 300 on swiggy` or `uber 200` to log your first transaction!
@@ -31,7 +31,7 @@ Follow these simple steps to start tracking your expenses:
 
 ## Adding Expenses
 
-You can record expenses by typing natural language messages. The assistant extracts the **amount**, **category**, and **merchant**.
+You can record expenses by typing natural language messages. TelePaisa extracts the **amount**, **category**, and **merchant**.
 
 ### Natural Language Examples
 - `spent 500 on food`
@@ -59,7 +59,7 @@ You can record expenses by typing natural language messages. The assistant extra
 ### How Budgets Work
 - Budgets are calculated on a **monthly basis** for each category.
 - Setting a budget creates or updates the limit for that category.
-- When an expense is recorded in a budgeted category, the system calculates your total spending for the month against the limit and shows your progress percentage.
+- When an expense is recorded in a budgeted category, TelePaisa calculates your total spending for the month against the limit and shows your progress percentage.
 
 ### Setting a Budget
 - **Command**: `/budget food 5000`
@@ -172,5 +172,5 @@ Bot: 🕒 Recent Transactions:
 ## Multi-User Data Isolation Guarantee
 
 Your data is completely private and secure:
-- **Chat ID Isolation**: The bot uses your unique Telegram Chat ID to isolate all transaction and budget records.
-- **Privacy Assurance**: No other Telegram user can access, view, or modify your financial data, summaries, or budgets through the bot.
+- **Chat ID Isolation**: TelePaisa uses your unique Telegram Chat ID to isolate all transaction and budget records.
+- **Privacy Assurance**: No other Telegram user can access, view, or modify your financial data, summaries, or budgets through TelePaisa.

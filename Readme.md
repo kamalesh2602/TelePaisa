@@ -1,12 +1,12 @@
-# AI-Powered Telegram Personal Finance Assistant
+# TelePaisa - AI-Powered Telegram Personal Finance Assistant
 
-A full-stack personal finance assistant that enables conversational expense tracking through a Telegram Bot, backed by Express.js, MongoDB, and a React + Tailwind CSS web analytics dashboard.
+A full-stack personal finance assistant that enables conversational expense tracking through a Telegram Bot (`TelePaisa`), backed by Express.js, MongoDB, and a React + Tailwind CSS web analytics dashboard.
 
 ---
 
 ## Project Overview
 
-Managing personal finances often feels cumbersome when using rigid spreadsheet tools or manual entry apps. The **AI-Powered Telegram Personal Finance Assistant** solves this problem by bringing expense tracking directly into Telegram. Users can log transactions using structured slash commands (e.g. `/budget food 5000`, `/summary`) or natural text messages (e.g. `"spent 300 on swiggy"`). All financial data is securely saved in MongoDB and visualized in real-time through an interactive web dashboard.
+Managing personal finances often feels cumbersome when using rigid spreadsheet tools or manual entry apps. **TelePaisa** solves this problem by bringing expense tracking directly into Telegram. Users can log transactions using structured slash commands (e.g. `/budget food 5000`, `/summary`) or natural text messages (e.g. `"spent 300 on swiggy"`). All financial data is securely saved in MongoDB and visualized in real-time through an interactive web dashboard.
 
 ---
 
@@ -49,7 +49,7 @@ Telegram User ──> Telegram Servers <── Long Polling (node-telegram-bot-a
 
 - **User Identifier**: The backend extracts `msg.chat.id.toString()` for every incoming Telegram message and uses it as the primary user identifier (`phone` string field in Mongoose schemas).
 - **Data Privacy**: All database queries (`find`, `aggregate`, `findOneAndUpdate`) strictly match `{ phone: userId }`.
-- **Zero Onboarding Friction**: Users simply start a conversation with the Telegram bot; the backend automatically isolates their data without requiring user registration or manual ID setup.
+- **Zero Onboarding Friction**: Users simply start a conversation with the TelePaisa bot; the backend automatically isolates their data without requiring user registration or manual ID setup.
 
 ---
 
@@ -80,7 +80,7 @@ Telegram User ──> Telegram Servers <── Long Polling (node-telegram-bot-a
 
 | Variable | Description | Example / Default | Required |
 | :--- | :--- | :--- | :--- |
-| `MONGO_URI` | MongoDB Atlas / Local connection string | `mongodb://localhost:27017/whatsapp-finance-bot` | Yes |
+| `MONGO_URI` | MongoDB Atlas / Local connection string | `mongodb://localhost:27017/telepaisa` | Yes |
 | `TELEGRAM_BOT_TOKEN` | HTTP API Token from Telegram BotFather | `123456789:ABCdef...` | Yes |
 | `TELEGRAM_MODE` | Bot transport mode (`polling` or `webhook`) | `polling` (Local) / `webhook` (Render) | No (Default: `polling`) |
 | `TELEGRAM_WEBHOOK_URL` | Public HTTPS Webhook endpoint on Render | `https://<service>.onrender.com/telegram/webhook` | Required in Webhook mode |
@@ -99,13 +99,13 @@ VITE_PHONE_NUMBER=your_telegram_chat_id
 
 1. Clone repository & install dependencies:
    ```bash
-   git clone https://github.com/kamalesh2602/whatsapp-ai-finance-bot.git
-   cd whatsapp-ai-finance-bot
+   git clone https://github.com/kamalesh2602/TelePaisa.git
+   cd TelePaisa
    npm install
    ```
 2. Create root `.env`:
    ```env
-   MONGO_URI=mongodb://localhost:27017/whatsapp-finance-bot
+   MONGO_URI=mongodb://localhost:27017/telepaisa
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_MODE=polling
    ```
@@ -127,7 +127,7 @@ VITE_PHONE_NUMBER=your_telegram_chat_id
 ## Production Deployment on Render (Webhook Mode)
 
 ### Step 1: Create Web Service on Render
-1. Connect your GitHub repository to [Render](https://render.com).
+1. Connect your GitHub repository (`https://github.com/kamalesh2602/TelePaisa`) to [Render](https://render.com).
 2. Choose **Web Service**.
 3. Configure settings:
    - **Environment**: `Node`
@@ -136,7 +136,7 @@ VITE_PHONE_NUMBER=your_telegram_chat_id
 
 ### Step 2: Add Environment Variables in Render Dashboard
 Add the following key-value pairs under **Environment** settings in Render:
-- `MONGO_URI` $\rightarrow$ `mongodb+srv://<user>:<password>@cluster.mongodb.net/finance-bot`
+- `MONGO_URI` $\rightarrow$ `mongodb+srv://<user>:<password>@cluster.mongodb.net/telepaisa`
 - `TELEGRAM_BOT_TOKEN` $\rightarrow$ `<your_botfather_token>`
 - `TELEGRAM_MODE` $\rightarrow$ `webhook`
 - `TELEGRAM_WEBHOOK_URL` $\rightarrow$ `https://<your-render-service>.onrender.com/telegram/webhook`
@@ -166,7 +166,7 @@ https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/getWebhookInfo
 
 ## User Manual & Telegram Bot Usage
 
-For the complete Telegram bot user guide, command list, syntax examples, and natural language walkthroughs, see [DOCUMENTATION.md](file:///d:/Kamalesh_projects/whatsapp-ai-finance-bot/DOCUMENTATION.md).
+For the complete TelePaisa bot user guide, command list, syntax examples, and natural language walkthroughs, see [DOCUMENTATION.md](file:///d:/Kamalesh_projects/whatsapp-ai-finance-bot/DOCUMENTATION.md).
 
 ---
 

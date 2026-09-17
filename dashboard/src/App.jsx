@@ -76,11 +76,11 @@ function App() {
       <div className="mb-8">
 
         <h1 className="text-4xl font-bold text-gray-800">
-          💸 Finance Dashboard
+          💸 TelePaisa Finance Dashboard
         </h1>
 
         <p className="text-gray-500 mt-2">
-          AI-powered WhatsApp expense tracker
+          AI-powered TelePaisa Telegram expense tracker
         </p>
 
       </div>
