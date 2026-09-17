@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 dotenv.config();
-console.log("KEY:", process.env.GEMINI_API_KEY);
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -569,61 +568,63 @@ const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramMode = (process.env.TELEGRAM_MODE || "polling").toLowerCase();
 let bot = null;
 
-if (telegramToken && telegramToken !== "your_telegram_bot_token") {
-  if (telegramMode === "webhook") {
-    // Webhook mode (no polling)
-    bot = new TelegramBot(telegramToken);
-    console.log("Telegram Bot initialized in WEBHOOK mode 🌐");
+function initTelegramBot() {
+  if (telegramToken && telegramToken !== "your_telegram_bot_token") {
+    if (telegramMode === "webhook") {
+      // Webhook mode (no polling)
+      bot = new TelegramBot(telegramToken);
+      console.log("Telegram Bot initialized in WEBHOOK mode 🌐");
 
-    setupCallbackQueryListener(bot);
+      setupCallbackQueryListener(bot);
 
-    bot.setMyCommands([
-      { command: "start", description: "Start the bot & show menu" },
-      { command: "help", description: "View help & usage guide" },
-      { command: "summary", description: "View spending summary" },
-      { command: "recent", description: "View recent transactions" },
-      { command: "budget", description: "View monthly budget limits" },
-      { command: "website", description: "Open analytics dashboard" }
-    ]).catch(err => console.error("Error setting Telegram commands:", err.message));
+      bot.setMyCommands([
+        { command: "start", description: "Start the bot & show menu" },
+        { command: "help", description: "View help & usage guide" },
+        { command: "summary", description: "View spending summary" },
+        { command: "recent", description: "View recent transactions" },
+        { command: "budget", description: "View monthly budget limits" },
+        { command: "website", description: "Open analytics dashboard" }
+      ]).catch(err => console.error("Error setting Telegram commands:", err.message));
 
-    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
-    const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
+      const rawWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+      const webhookUrl = rawWebhookUrl ? rawWebhookUrl.trim() : "";
+      const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
 
-    if (webhookUrl) {
-      console.log(webhookUrl);
-      const webhookOptions = secretToken ? { secret_token: secretToken } : {};
-      bot.setWebHook(webhookUrl, webhookOptions)
-        .then(() => console.log(`Telegram webhook registered at: ${webhookUrl}`))
-        .catch(err => console.error("Error setting Telegram webhook:", err.message));
+      if (webhookUrl) {
+        const webhookOptions = secretToken ? { secret_token: secretToken } : {};
+        bot.setWebHook(webhookUrl, webhookOptions)
+          .then(() => console.log(`Telegram webhook registered at: ${webhookUrl}`))
+          .catch(err => console.error("Error setting Telegram webhook:", err.message));
+      } else {
+        console.warn("TELEGRAM_MODE is webhook, but TELEGRAM_WEBHOOK_URL is not configured.");
+      }
     } else {
-      console.warn("TELEGRAM_MODE is webhook, but TELEGRAM_WEBHOOK_URL is not configured.");
+      // Polling mode (default for local dev)
+      bot = new TelegramBot(telegramToken, { polling: true });
+      console.log("Telegram Bot initialized in POLLING mode 🤖");
+
+      setupCallbackQueryListener(bot);
+
+      bot.setMyCommands([
+        { command: "start", description: "Start the bot & show menu" },
+        { command: "help", description: "View help & usage guide" },
+        { command: "summary", description: "View spending summary" },
+        { command: "recent", description: "View recent transactions" },
+        { command: "budget", description: "View monthly budget limits" },
+        { command: "website", description: "Open analytics dashboard" }
+      ]).catch(err => console.error("Error setting Telegram commands:", err.message));
+
+      bot.deleteWebHook()
+        .then(() => console.log("Cleared active Telegram webhook for polling mode."))
+        .catch(err => console.error("Error deleting Telegram webhook:", err.message));
+
+      bot.on("message", async (msg) => {
+        await handleIncomingTelegramMessage(bot, msg);
+      });
     }
   } else {
-    // Polling mode (default for local dev)
-    bot = new TelegramBot(telegramToken, { polling: true });
-    console.log("Telegram Bot initialized in POLLING mode 🤖");
-
-    setupCallbackQueryListener(bot);
-
-    bot.setMyCommands([
-      { command: "start", description: "Start the bot & show menu" },
-      { command: "help", description: "View help & usage guide" },
-      { command: "summary", description: "View spending summary" },
-      { command: "recent", description: "View recent transactions" },
-      { command: "budget", description: "View monthly budget limits" },
-      { command: "website", description: "Open analytics dashboard" }
-    ]).catch(err => console.error("Error setting Telegram commands:", err.message));
-
-    bot.deleteWebHook()
-      .then(() => console.log("Cleared active Telegram webhook for polling mode."))
-      .catch(err => console.error("Error deleting Telegram webhook:", err.message));
-
-    bot.on("message", async (msg) => {
-      await handleIncomingTelegramMessage(bot, msg);
-    });
+    console.log("TELEGRAM_BOT_TOKEN not provided or default. Telegram bot inactive.");
   }
-} else {
-  console.log("TELEGRAM_BOT_TOKEN not provided or default. Telegram bot inactive.");
 }
 
 // ---------------- TELEGRAM WEBHOOK ENDPOINT ----------------
@@ -755,4 +756,5 @@ app.get("/api/recent", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} 🚀`);
+  initTelegramBot();
 });
