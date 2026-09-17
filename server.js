@@ -564,6 +564,7 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
     const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
 
     if (webhookUrl) {
+      console.log(webhookUrl);
       const webhookOptions = secretToken ? { secret_token: secretToken } : {};
       bot.setWebHook(webhookUrl, webhookOptions)
         .then(() => console.log(`Telegram webhook registered at: ${webhookUrl}`))
