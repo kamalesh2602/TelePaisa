@@ -17,7 +17,7 @@ Managing personal finances often feels cumbersome when using rigid spreadsheet t
 - **Persistent Reply Keyboard & Natural Aliases**: Persistent 4-button keyboard (`💰 Summary`, `🕐 Recent`, `💳 Budget`, `❓ Help`) and case-insensitive natural aliases (`recent`, `summary`, `budget`, `help`).
 - **Scalable Paginated Recent Transactions**: Paginated `/recent` transactions (5 per page) with in-place message updating (`[ ◀ Previous ]` / `[ Next ▶ ]`) and inline action buttons (`[✏️ Edit]` / `[🗑 Delete]`).
 - **Zero-Value Expense Safeguard**: Intercepts command aliases and non-numeric messages to prevent invalid ₹0 expense creation.
-- **Hybrid Expense Parsing**: Intelligent transaction extraction combining Google Gemini AI API parsing with a rule-based fallback keyword and regex parser.
+- **Hybrid Expense Parsing & Expanded Categories**: Intelligent transaction extraction supporting 11 categories (`food`, `travel`, `shopping`, `education`, `bills`, `entertainment`, `health`, `subscriptions`, `personal_care`, `recharge`, `general`) with special detection for college student expenses.
 - **Multi-User Data Isolation**: Secure data partitioning based on unique Telegram Chat IDs (`msg.chat.id`), ensuring user records remain completely private.
 - **Monthly Budgeting & Alerts**: Category-based monthly limit setting with instant over-budget warning notifications.
 - **Web Analytics Dashboard**: Interactive React + Tailwind CSS dashboard built with Recharts displaying total spending, monthly trends, category pie charts, budget progress bars, and recent transactions.

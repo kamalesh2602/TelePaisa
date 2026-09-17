@@ -66,9 +66,32 @@ You can interact using natural phrases without typing slash commands:
 
 ### Natural Expense Entry
 - `spent 500 on food`
-- `spent 300 on swiggy`
-- `uber ride 200`
-- `netflix subscription 500`
+- `spent 50 on pens` (education)
+- `bought a notebook for 80` (education)
+- `electricity bill 500` (bills)
+- `recharged my phone 299` (recharge)
+- `uber ride 200` (travel)
+- `netflix subscription 500` (subscriptions)
+
+---
+
+## Expense Categories Reference
+
+TelePaisa supports 11 expense categories designed for college students and general personal finance tracking:
+
+| Category | Description & Common Keywords | Examples |
+| :--- | :--- | :--- |
+| **`education`** | Pens, pencils, notebooks, stationery, books, textbooks, printing, photocopy, exam fees, college fees, course fees, lab fees, project materials, college supplies | `"spent 50 on pens"`, `"bought a notebook for 80"`, `"paid 500 for exam fees"` |
+| **`food`** | Swiggy, Zomato, restaurants, cafes, snacks, lunch, dinner, breakfast, coffee | `"lunch 150"`, `"spent 300 on swiggy"` |
+| **`travel`** | Uber, Ola, bus, train, metro, auto, flight, rides | `"uber ride 200"`, `"bus ticket 50"` |
+| **`shopping`** | Amazon, Flipkart, clothes, shirts, shoes, dresses | `"bought a shirt 800"`, `"amazon purchase 1200"` |
+| **`bills`** | Electricity bill, water bill, internet bill, wifi, rent, utility bills | `"electricity bill 500"`, `"water bill 300"` |
+| **`entertainment`** | Movies, games, gaming, Steam, concerts, events, cinema | `"movie 250"`, `"concert ticket 1500"` |
+| **`health`** | Medicines, pharmacy, doctor, hospital, medical expenses | `"medicine 100"`, `"doctor fee 500"` |
+| **`subscriptions`** | Netflix, Spotify, YouTube Premium, Amazon Prime, recurring subs | `"netflix 199"`, `"spotify 119"` |
+| **`personal_care`** | Shampoo, soap, toothpaste, skincare, haircut, grooming, cosmetics | `"shampoo 200"`, `"haircut 150"` |
+| **`recharge`** | Mobile recharge, phone recharge, data recharge, prepaid recharge | `"recharge 299"`, `"recharged my phone 299"` |
+| **`general`** | Fallback for any expense where category cannot be confidently identified | `"misc expense 100"` |
 
 > [!NOTE]
 > **Zero-Value Expense Safeguard**:

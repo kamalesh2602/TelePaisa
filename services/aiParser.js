@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { CATEGORIES, detectCategory } from "../constants/categories.js";
 
 const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY
@@ -18,6 +19,9 @@ Extract expense details from this message.
 Message:
 "${text}"
 
+Category MUST be one of the following exact strings:
+food, travel, shopping, education, bills, entertainment, health, subscriptions, personal_care, recharge, general.
+
 Return ONLY valid JSON.
 
 Format:
@@ -34,6 +38,14 @@ Examples:
   "amount": 300,
   "category": "food",
   "merchant": "swiggy",
+  "type": "expense"
+}
+
+"spent 50 on pens"
+{
+  "amount": 50,
+  "category": "education",
+  "merchant": "unknown",
   "type": "expense"
 }
 
@@ -61,7 +73,20 @@ Examples:
 
     try {
 
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+
+      if (parsed && typeof parsed.category === "string") {
+        const catLower = parsed.category.toLowerCase().trim();
+        if (CATEGORIES.includes(catLower)) {
+          parsed.category = catLower;
+        } else {
+          parsed.category = detectCategory(text);
+        }
+      } else if (parsed) {
+        parsed.category = detectCategory(text);
+      }
+
+      return parsed;
 
     } catch {
 
@@ -88,50 +113,7 @@ function basicParser(text) {
     lower.match(/\d+/)?.[0] || 0
   );
 
-  const categoryMap = {
-
-    // FOOD
-    swiggy: "food",
-    zomato: "food",
-    pizza: "food",
-    burger: "food",
-    food: "food",
-
-    // TRAVEL
-    uber: "travel",
-    ola: "travel",
-    bus: "travel",
-    train: "travel",
-
-    // ENTERTAINMENT
-    netflix: "entertainment",
-    movie: "entertainment",
-    game: "entertainment",
-    steam: "entertainment",
-
-    // SHOPPING
-    amazon: "shopping",
-    flipkart: "shopping",
-
-    // SUBSCRIPTIONS
-    "amazon prime": "subscriptions",
-    spotify: "subscriptions",
-
-    // HEALTH
-    pharmacy: "health",
-    apollo: "health"
-
-  };
-
-  let category = "other";
-
-  for (const key in categoryMap) {
-
-    if (lower.includes(key)) {
-      category = categoryMap[key];
-      break;
-    }
-  }
+  const category = detectCategory(text);
 
   return {
     amount,

@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import TelegramBot from "node-telegram-bot-api";
 import { parseExpense } from "./services/aiParser.js";
+import { detectCategory } from "./constants/categories.js";
 import Expense from "./models/Expense.js";
 import Budget from "./models/Budget.js";
 
@@ -49,16 +50,6 @@ function isInsightQuery(text) {
 
 function isBudgetSet(text) {
   return text.toLowerCase().includes("budget");
-}
-
-function extractCategory(text) {
-  const msg = text.toLowerCase();
-
-  if (msg.includes("food")) return "food";
-  if (msg.includes("travel")) return "travel";
-  if (msg.includes("shopping")) return "shopping";
-
-  return "general";
 }
 
 // ---------------- PERSISTENT REPLY KEYBOARD ----------------
@@ -133,7 +124,7 @@ async function processFinanceMessage(userId, message) {
   // ================= SET BUDGET =================
   if (isBudgetSet(message)) {
     const amount = parseInt(message.match(/\d+/)?.[0] || 0);
-    const category = extractCategory(message);
+    const category = detectCategory(message);
 
     await Budget.findOneAndUpdate(
       { phone: userId, category },
