@@ -61,9 +61,74 @@ function extractCategory(text) {
   return "general";
 }
 
+// ---------------- PERSISTENT REPLY KEYBOARD ----------------
+const mainReplyKeyboard = {
+  keyboard: [
+    [{ text: "💰 Summary" }, { text: "🕐 Recent" }],
+    [{ text: "💳 Budget" }, { text: "❓ Help" }]
+  ],
+  resize_keyboard: true
+};
+
+// ---------------- NATURAL ALIAS NORMALIZER ----------------
+function normalizeCommandAlias(rawText) {
+  if (!rawText) return null;
+
+  const trimmed = rawText.trim();
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+
+  // Strip emojis and clean string
+  const clean = trimmed
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+    .trim()
+    .toLowerCase();
+
+  if (clean === "start") return "/start";
+  if (clean === "help") return "/help";
+  if (
+    clean === "summary" ||
+    clean === "show summary" ||
+    clean === "how much did i spend" ||
+    clean === "how much did i spend?" ||
+    clean === "how much spent" ||
+    clean === "how is my spending"
+  ) {
+    return "/summary";
+  }
+  if (
+    clean === "recent" ||
+    clean === "show recent" ||
+    clean === "show recent transactions"
+  ) {
+    return "/recent";
+  }
+  if (
+    clean === "budget" ||
+    clean === "show budget" ||
+    clean === "show my budget"
+  ) {
+    return "/budget";
+  }
+
+  return null;
+}
+
 // ---------------- CORE FINANCE LOGIC ----------------
 async function processFinanceMessage(userId, message) {
   console.log("\nIncoming message from user", userId, ":", message);
+
+  // Check if message is a command alias
+  const aliasCommand = normalizeCommandAlias(message);
+  if (aliasCommand) {
+    return await handleTelegramCommand(userId, aliasCommand);
+  }
+
+  // Check if message contains a valid number for expense parsing (prevents zero-value transactions)
+  if (!/\d+/.test(message)) {
+    return "❌ Could not detect an expense amount. Example: 'spent 300 on swiggy' or tap /help for options.";
+  }
 
   // ================= SET BUDGET =================
   if (isBudgetSet(message)) {
@@ -79,42 +144,12 @@ async function processFinanceMessage(userId, message) {
     return `✅ Budget set: ₹${amount} for ${category}`;
   }
 
-  // ================= INSIGHTS =================
-  if (isInsightQuery(message)) {
-    const data = await Expense.aggregate([
-      { $match: { phone: userId } },
-      {
-        $group: {
-          _id: "$category",
-          total: { $sum: "$amount" }
-        }
-      }
-    ]);
-
-    if (!data.length) {
-      return "No data yet. Start adding expenses.";
-    }
-
-    const total = data.reduce((sum, i) => sum + i.total, 0);
-    const top = data.sort((a, b) => b.total - a.total)[0];
-
-    return `💰 Total: ₹${total}\n📊 Top: ${top._id} (₹${top.total})`;
-  }
-
-  // ================= QUERY =================
-  if (!isExpense(message) && isQuery(message)) {
-    const total = await Expense.aggregate([
-      { $match: { phone: userId } },
-      { $group: { _id: null, total: { $sum: "$amount" } } }
-    ]);
-
-    const amount = total[0]?.total || 0;
-
-    return `💰 You spent ₹${amount}`;
-  }
-
   // ================= EXPENSE =================
   const data = await parseExpense(message);
+
+  if (!data || !data.amount || data.amount <= 0) {
+    return "❌ Could not detect a valid expense amount. Example: 'spent 300 on swiggy' or tap /help.";
+  }
 
   const expense = await Expense.create({
     ...data,
@@ -149,27 +184,95 @@ async function processFinanceMessage(userId, message) {
 }
 
 // ---------------- TRANSACTION RESOLVER HELPER ----------------
-async function resolveUserExpense(userId, target) {
+async function resolveUserExpense(userId, target, page = 1, pageSize = 5) {
   if (!target) return null;
   const cleanTarget = target.trim();
 
-  // If numeric index e.g. "1", "2", "3" (1-indexed from user's 10 recent transactions)
   if (/^\d+$/.test(cleanTarget)) {
-    const index = parseInt(cleanTarget) - 1;
-    if (index >= 0 && index < 10) {
+    const num = parseInt(cleanTarget);
+    if (num >= 1 && num <= pageSize) {
       const recentList = await Expense.find({ phone: userId })
         .sort({ createdAt: -1 })
-        .limit(10);
-      return recentList[index] || null;
+        .skip((page - 1) * pageSize)
+        .limit(pageSize);
+      if (recentList[num - 1]) return recentList[num - 1];
+    }
+    // Fallback: resolve across top 50 recent items
+    if (num >= 1 && num <= 50) {
+      const recentList = await Expense.find({ phone: userId })
+        .sort({ createdAt: -1 })
+        .limit(50);
+      return recentList[num - 1] || null;
     }
   }
 
-  // If valid MongoDB ObjectId
   if (mongoose.Types.ObjectId.isValid(cleanTarget)) {
     return await Expense.findOne({ _id: cleanTarget, phone: userId });
   }
 
   return null;
+}
+
+// ---------------- RECENT PAGINATION HELPER ----------------
+async function getRecentPageData(userId, page = 1, pageSize = 5) {
+  const totalCount = await Expense.countDocuments({ phone: userId });
+
+  if (totalCount === 0) {
+    return {
+      text: "No recent transactions found.",
+      reply_markup: undefined
+    };
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
+  const transactions = await Expense.find({ phone: userId })
+    .sort({ createdAt: -1 })
+    .skip((currentPage - 1) * pageSize)
+    .limit(pageSize);
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const list = transactions
+    .map((t, idx) => {
+      const displayNum = idx + 1;
+      const d = new Date(t.createdAt);
+      const dateStr = `${monthNames[d.getMonth()]} ${d.getDate()}`;
+      const merchantInfo = t.merchant && t.merchant !== "unknown" ? ` (${t.merchant})` : "";
+      return `${displayNum}. ₹${t.amount} — ${t.category}${merchantInfo} — ${dateStr}`;
+    })
+    .join("\n");
+
+  const text = `🕐 Recent Transactions (Page ${currentPage} of ${totalPages})\n\n${list}\n\n💡 Use /edit <num> <amount> or /delete <num> to manage transactions on this page.`;
+
+  const inline_keyboard = [];
+
+  // Action buttons for displayed transactions (numbered 1..pageSize for current page)
+  transactions.forEach((t, idx) => {
+    const displayNum = idx + 1;
+    inline_keyboard.push([
+      { text: `✏️ Edit #${displayNum}`, callback_data: `edit_${t._id}` },
+      { text: `🗑️ Delete #${displayNum}`, callback_data: `del_${t._id}` }
+    ]);
+  });
+
+  // Navigation buttons row
+  const navRow = [];
+  if (currentPage > 1) {
+    navRow.push({ text: "◀ Previous", callback_data: `page_${currentPage - 1}` });
+  }
+  if (currentPage < totalPages) {
+    navRow.push({ text: "Next ▶", callback_data: `page_${currentPage + 1}` });
+  }
+  if (navRow.length > 0) {
+    inline_keyboard.push(navRow);
+  }
+
+  return {
+    text,
+    reply_markup: { inline_keyboard }
+  };
 }
 
 // ---------------- TELEGRAM COMMAND DISPATCHER ----------------
@@ -179,39 +282,43 @@ async function handleTelegramCommand(userId, commandText) {
   const args = parts.slice(1);
 
   if (command === "/start") {
-    return (
-      "👋 Welcome to your AI Personal Finance Assistant (TelePaisa)!\n\n" +
-      "Track expenses naturally or use slash commands:\n\n" +
-      "💡 Commands:\n" +
-      "• /help - View commands & usage guide\n" +
-      "• /summary - View total spending & category breakdown\n" +
-      "• /summary <category> - View spending for a specific category\n" +
-      "• /recent - View recent transactions with edit/delete options\n" +
-      "• /budget - View monthly budget limits\n" +
-      "• /budget <category> <amount> - Set a monthly budget\n" +
-      "• /edit <num> <amount> [category] - Edit a transaction\n" +
-      "• /delete <num> - Delete a transaction\n\n" +
-      "💬 Natural Language Examples:\n" +
-      "• \"spent 300 on swiggy\"\n" +
-      "• \"uber ride 200\""
-    );
+    return {
+      text:
+        "👋 Welcome to your AI Personal Finance Assistant (TelePaisa)!\n\n" +
+        "Track expenses naturally or tap buttons/commands below:\n\n" +
+        "💡 Commands:\n" +
+        "• /help - View commands & usage guide\n" +
+        "• /summary - View total spending & category breakdown\n" +
+        "• /summary <category> - View spending for a specific category\n" +
+        "• /recent - View recent transactions with pagination & buttons\n" +
+        "• /budget - View monthly budget limits\n" +
+        "• /budget <category> <amount> - Set a monthly budget\n" +
+        "• /edit <num> <amount> [category] - Edit a transaction\n" +
+        "• /delete <num> - Delete a transaction\n\n" +
+        "💬 Natural Language Examples:\n" +
+        "• \"spent 300 on swiggy\"\n" +
+        "• \"uber ride 200\"",
+      reply_markup: mainReplyKeyboard
+    };
   }
 
   if (command === "/help") {
-    return (
-      "📖 Available Commands:\n\n" +
-      "• /summary - Show total spend & category breakdown\n" +
-      "• /summary <category> - Show spend for specific category (e.g. /summary food)\n" +
-      "• /recent - Show last 5 transactions\n" +
-      "• /budget - Show current monthly budgets\n" +
-      "• /budget <category> <amount> - Set monthly budget (e.g. /budget food 5000)\n" +
-      "• /edit <num> <amount> [category] - Edit transaction (e.g. /edit 1 50 food)\n" +
-      "• /delete <num> - Delete transaction (e.g. /delete 1)\n" +
-      "• /help - Show this guide\n\n" +
-      "💬 Natural Language Messages:\n" +
-      "• \"spent 500 on food\"\n" +
-      "• \"how much total\""
-    );
+    return {
+      text:
+        "📖 Available Commands:\n\n" +
+        "• /summary - Show total spend & category breakdown\n" +
+        "• /summary <category> - Show spend for specific category (e.g. /summary food)\n" +
+        "• /recent - Show paginated recent transactions\n" +
+        "• /budget - Show current monthly budgets\n" +
+        "• /budget <category> <amount> - Set monthly budget (e.g. /budget food 5000)\n" +
+        "• /edit <num> <amount> [category] - Edit transaction (e.g. /edit 1 50 food)\n" +
+        "• /delete <num> - Delete transaction (e.g. /delete 1)\n" +
+        "• /help - Show this guide\n\n" +
+        "💬 Natural Language Messages:\n" +
+        "• \"spent 500 on food\"\n" +
+        "• \"how much total\"",
+      reply_markup: mainReplyKeyboard
+    };
   }
 
   if (command === "/summary") {
@@ -248,33 +355,8 @@ async function handleTelegramCommand(userId, commandText) {
   }
 
   if (command === "/recent") {
-    const transactions = await Expense.find({ phone: userId })
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    if (!transactions.length) {
-      return "No recent transactions found.";
-    }
-
-    const list = transactions
-      .map((t, idx) => {
-        const dateStr = new Date(t.createdAt).toLocaleDateString();
-        const merchantInfo = t.merchant && t.merchant !== "unknown" ? ` (${t.merchant})` : "";
-        return `${idx + 1}. ₹${t.amount} on ${t.category}${merchantInfo} - ${dateStr}`;
-      })
-      .join("\n");
-
-    const text = `🕒 Recent Transactions:\n\n${list}\n\n💡 Use /edit <num> <amount> or /delete <num> to manage transactions.`;
-
-    const inline_keyboard = transactions.map((t, idx) => [
-      { text: `✏️ Edit #${idx + 1}`, callback_data: `edit_${t._id}` },
-      { text: `🗑️ Delete #${idx + 1}`, callback_data: `del_${t._id}` }
-    ]);
-
-    return {
-      text,
-      reply_markup: { inline_keyboard }
-    };
+    const pageNum = parseInt(args[0]) || 1;
+    return await getRecentPageData(userId, pageNum);
   }
 
   if (command === "/budget") {
@@ -383,7 +465,20 @@ function setupCallbackQueryListener(botInstance) {
     const userId = query.from.id.toString();
     const data = query.data;
 
-    if (data.startsWith("del_")) {
+    if (data.startsWith("page_")) {
+      const pageNum = parseInt(data.replace("page_", "")) || 1;
+      const result = await getRecentPageData(userId, pageNum);
+      try {
+        await botInstance.answerCallbackQuery(query.id);
+        await botInstance.editMessageText(result.text, {
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          reply_markup: result.reply_markup
+        });
+      } catch (err) {
+        console.error("Error updating Telegram page:", err.message);
+      }
+    } else if (data.startsWith("del_")) {
       const expenseId = data.replace("del_", "");
       const deleted = await Expense.findOneAndDelete({ _id: expenseId, phone: userId });
       if (deleted) {
@@ -415,9 +510,11 @@ async function handleIncomingTelegramMessage(botInstance, msg) {
   const chatId = msg.chat.id.toString();
   const text = msg.text.trim();
 
-  if (text.startsWith("/")) {
+  const aliasCommand = normalizeCommandAlias(text);
+
+  if (aliasCommand) {
     try {
-      const result = await handleTelegramCommand(chatId, text);
+      const result = await handleTelegramCommand(chatId, aliasCommand);
       if (typeof result === "object" && result.text) {
         await botInstance.sendMessage(msg.chat.id, result.text, { reply_markup: result.reply_markup });
       } else {
@@ -430,7 +527,11 @@ async function handleIncomingTelegramMessage(botInstance, msg) {
   } else {
     try {
       const response = await processFinanceMessage(chatId, text);
-      await botInstance.sendMessage(msg.chat.id, response);
+      if (typeof response === "object" && response.text) {
+        await botInstance.sendMessage(msg.chat.id, response.text, { reply_markup: response.reply_markup });
+      } else {
+        await botInstance.sendMessage(msg.chat.id, response);
+      }
     } catch (err) {
       console.error("Telegram message processing error:", err);
       await botInstance.sendMessage(msg.chat.id, "❌ Couldn't understand. Try again.");
@@ -451,6 +552,14 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
 
     setupCallbackQueryListener(bot);
 
+    bot.setMyCommands([
+      { command: "start", description: "Start the bot & show menu" },
+      { command: "help", description: "View help & usage guide" },
+      { command: "summary", description: "View spending summary" },
+      { command: "recent", description: "View recent transactions" },
+      { command: "budget", description: "View monthly budget limits" }
+    ]).catch(err => console.error("Error setting Telegram commands:", err.message));
+
     const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
     const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
 
@@ -468,6 +577,14 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
     console.log("Telegram Bot initialized in POLLING mode 🤖");
 
     setupCallbackQueryListener(bot);
+
+    bot.setMyCommands([
+      { command: "start", description: "Start the bot & show menu" },
+      { command: "help", description: "View help & usage guide" },
+      { command: "summary", description: "View spending summary" },
+      { command: "recent", description: "View recent transactions" },
+      { command: "budget", description: "View monthly budget limits" }
+    ]).catch(err => console.error("Error setting Telegram commands:", err.message));
 
     bot.deleteWebHook()
       .then(() => console.log("Cleared active Telegram webhook for polling mode."))
