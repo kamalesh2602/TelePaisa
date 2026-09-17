@@ -13,7 +13,8 @@ Managing personal finances often feels cumbersome when using rigid spreadsheet t
 ## Key Features
 
 - **Dual Telegram Transport Support**: Supports both **Local Polling** (for local development) and **HTTPS Webhooks** (for Render production deployment) via configuration.
-- **Structured Slash Commands**: Explicit commands (`/start`, `/help`, `/summary`, `/recent`, `/budget`) with input validation and usage guidance.
+- **Structured Slash Commands**: Explicit commands (`/start`, `/help`, `/summary`, `/recent`, `/budget`, `/edit`, `/delete`) with input validation and usage guidance.
+- **Transaction Correction & Management**: Edit amount or category (`/edit <num> <amount> [category]`), delete transactions (`/delete <num>`), and use Telegram inline keyboard buttons (`[✏️ Edit]` / `[🗑 Delete]`).
 - **Hybrid Expense Parsing**: Intelligent transaction extraction combining Google Gemini AI API parsing with a rule-based fallback keyword and regex parser.
 - **Multi-User Data Isolation**: Secure data partitioning based on unique Telegram Chat IDs (`msg.chat.id`), ensuring user records remain completely private.
 - **Monthly Budgeting & Alerts**: Category-based monthly limit setting with instant over-budget warning notifications.

@@ -1,6 +1,6 @@
 # TelePaisa - Telegram Bot User Manual
 
-Welcome to the **TelePaisa** Telegram Bot (`@TelePaisa_Bot`)! This user manual explains how to set up, track expenses, manage monthly budgets, and query your spending insights using both Telegram slash commands and natural language messages.
+Welcome to the **TelePaisa** Telegram Bot (`@TelePaisa_Bot`)! This user manual explains how to set up, track expenses, manage monthly budgets, edit/delete transactions, and query your spending insights using both Telegram slash commands and natural language messages.
 
 ---
 
@@ -23,9 +23,25 @@ Follow these simple steps to start tracking your expenses:
 | **`/help`** | Show commands & usage guide | `/help` | Detailed list of supported slash commands and text syntax |
 | **`/summary`** | View overall spending summary | `/summary` | Total cumulative spend, category breakdown, and top category |
 | **`/summary <category>`** | View spending for specific category | `/summary food` | Total spend for the specified category |
-| **`/recent`** | View 5 recent transactions | `/recent` | Numbered list of recent expenses with amounts, categories, and dates |
+| **`/recent`** | View 5 recent transactions with buttons | `/recent` | Numbered list of recent expenses with `[✏️ Edit]` & `[🗑 Delete]` buttons |
 | **`/budget`** | View monthly budgets & progress | `/budget` | Monthly budget limits, current spend, progress percentage, and warnings |
 | **`/budget <category> <amount>`** | Set or update monthly category budget | `/budget food 5000` | Confirmation message: `✅ Monthly budget set: ₹5000 for food` |
+| **`/edit <num> <amount> [category]`** | Edit amount and/or category of an expense | `/edit 1 50 food` | Confirmation message: `✅ Updated transaction: ₹50 on food` |
+| **`/delete <num>`** | Delete an expense by recent number | `/delete 1` | Confirmation message: `✅ Deleted transaction: ₹500 on food` |
+
+---
+
+## Transaction Correction & Management
+
+### How Transaction Management Works
+- Running `/recent` lists your 5 most recent transactions numbered `1`, `2`, `3`, `4`, `5`.
+- Each transaction in `/recent` also includes inline buttons: `[✏️ Edit #1]` and `[🗑 Delete #1]`.
+- To **Delete**: Type `/delete 1` or tap `[🗑 Delete #1]`.
+- To **Edit**: Type `/edit 1 50` (to change amount to ₹50) or `/edit 1 50 food` (to change amount to ₹50 and category to `food`), or tap `[✏️ Edit #1]`.
+
+> [!IMPORTANT]
+> **Telegram Message Editing Safety**:
+> Editing your original Telegram message (e.g. changing `"spent 500 on food"` to `"spent 50 on food"`) will **NOT** modify your stored database transactions. Explicit commands (`/edit`, `/delete`) or inline buttons are required to prevent accidental database mutations.
 
 ---
 
@@ -105,66 +121,42 @@ You can query your spending using slash commands or natural phrases:
 
 ## Realistic Telegram Conversation Examples
 
-### Example 1: Welcome & First Expense
+### Example 1: Logging & Recent History
 ```text
-User: /start
-Bot: 👋 Welcome to your AI Personal Finance Assistant!
-
-Track expenses naturally or use slash commands:
-
-💡 Commands:
-• /help - View commands & usage guide
-• /summary - View total spending & category breakdown
-• /summary <category> - View spending for a specific category
-• /recent - View recent transactions
-• /budget - View monthly budget limits
-• /budget <category> <amount> - Set a monthly budget
-
-💬 Natural Language Examples:
-• "spent 300 on swiggy"
-• "uber ride 200"
-
-User: spent 300 on swiggy
-Bot: ✅ Added ₹300 to food
-```
-
-### Example 2: Setting a Budget & Checking Status
-```text
-User: /budget food 5000
-Bot: ✅ Monthly budget set: ₹5000 for food
-
-User: spent 4800 on groceries
-Bot: ✅ Added ₹4800 to food
-⚠️ food: ₹5100/₹5000 (102.0%)
-🚨 Budget exceeded!
-
-User: /budget
-Bot: 🎯 Monthly Budgets:
-
-• food: ₹5100 / ₹5000 (102.0%) 🚨 Exceeded!
-
-To set/update a budget:
-/budget <category> <amount>
-```
-
-### Example 3: Summaries & Recent History
-```text
-User: /summary
-Bot: 📊 Spending Summary:
-💰 Total Spent: ₹5300
-
-Categories:
-• food: ₹5100
-• travel: ₹200
-
-🏆 Top Category: food (₹5100)
+User: spent 500 on food
+Bot: ✅ Added ₹500 to food
 
 User: /recent
 Bot: 🕒 Recent Transactions:
 
-1. ₹4800 on food - 17/09/2026
-2. ₹300 on food (swiggy) - 17/09/2026
-3. ₹200 on travel (uber) - 17/09/2026
+1. ₹500 on food - 17/09/2026
+
+💡 Use /edit <num> <amount> or /delete <num> to manage transactions.
+[✏️ Edit #1] [🗑 Delete #1]
+```
+
+### Example 2: Editing a Transaction
+```text
+User: /edit 1 50 food
+Bot: ✅ Updated transaction: ₹50 on food
+
+User: /summary
+Bot: 📊 Spending Summary:
+💰 Total Spent: ₹50
+
+Categories:
+• food: ₹50
+
+🏆 Top Category: food (₹50)
+```
+
+### Example 3: Deleting a Transaction
+```text
+User: /delete 1
+Bot: ✅ Deleted transaction: ₹50 on food
+
+User: /recent
+Bot: No recent transactions found.
 ```
 
 ---
@@ -173,4 +165,4 @@ Bot: 🕒 Recent Transactions:
 
 Your data is completely private and secure:
 - **Chat ID Isolation**: TelePaisa uses your unique Telegram Chat ID to isolate all transaction and budget records.
-- **Privacy Assurance**: No other Telegram user can access, view, or modify your financial data, summaries, or budgets through TelePaisa.
+- **Privacy & Security**: All `/edit` and `/delete` operations strictly filter by your Chat ID. No other Telegram user can access, view, edit, or delete your financial data, summaries, or budgets through TelePaisa.

@@ -148,6 +148,30 @@ async function processFinanceMessage(userId, message) {
   return `✅ Added ₹${expense.amount} to ${expense.category}${alert}`;
 }
 
+// ---------------- TRANSACTION RESOLVER HELPER ----------------
+async function resolveUserExpense(userId, target) {
+  if (!target) return null;
+  const cleanTarget = target.trim();
+
+  // If numeric index e.g. "1", "2", "3" (1-indexed from user's 10 recent transactions)
+  if (/^\d+$/.test(cleanTarget)) {
+    const index = parseInt(cleanTarget) - 1;
+    if (index >= 0 && index < 10) {
+      const recentList = await Expense.find({ phone: userId })
+        .sort({ createdAt: -1 })
+        .limit(10);
+      return recentList[index] || null;
+    }
+  }
+
+  // If valid MongoDB ObjectId
+  if (mongoose.Types.ObjectId.isValid(cleanTarget)) {
+    return await Expense.findOne({ _id: cleanTarget, phone: userId });
+  }
+
+  return null;
+}
+
 // ---------------- TELEGRAM COMMAND DISPATCHER ----------------
 async function handleTelegramCommand(userId, commandText) {
   const parts = commandText.trim().split(/\s+/);
@@ -156,15 +180,17 @@ async function handleTelegramCommand(userId, commandText) {
 
   if (command === "/start") {
     return (
-      "👋 Welcome to your AI Personal Finance Assistant!\n\n" +
+      "👋 Welcome to your AI Personal Finance Assistant (TelePaisa)!\n\n" +
       "Track expenses naturally or use slash commands:\n\n" +
       "💡 Commands:\n" +
       "• /help - View commands & usage guide\n" +
       "• /summary - View total spending & category breakdown\n" +
       "• /summary <category> - View spending for a specific category\n" +
-      "• /recent - View recent transactions\n" +
+      "• /recent - View recent transactions with edit/delete options\n" +
       "• /budget - View monthly budget limits\n" +
-      "• /budget <category> <amount> - Set a monthly budget\n\n" +
+      "• /budget <category> <amount> - Set a monthly budget\n" +
+      "• /edit <num> <amount> [category] - Edit a transaction\n" +
+      "• /delete <num> - Delete a transaction\n\n" +
       "💬 Natural Language Examples:\n" +
       "• \"spent 300 on swiggy\"\n" +
       "• \"uber ride 200\""
@@ -179,6 +205,8 @@ async function handleTelegramCommand(userId, commandText) {
       "• /recent - Show last 5 transactions\n" +
       "• /budget - Show current monthly budgets\n" +
       "• /budget <category> <amount> - Set monthly budget (e.g. /budget food 5000)\n" +
+      "• /edit <num> <amount> [category] - Edit transaction (e.g. /edit 1 50 food)\n" +
+      "• /delete <num> - Delete transaction (e.g. /delete 1)\n" +
       "• /help - Show this guide\n\n" +
       "💬 Natural Language Messages:\n" +
       "• \"spent 500 on food\"\n" +
@@ -236,7 +264,17 @@ async function handleTelegramCommand(userId, commandText) {
       })
       .join("\n");
 
-    return `🕒 Recent Transactions:\n\n${list}`;
+    const text = `🕒 Recent Transactions:\n\n${list}\n\n💡 Use /edit <num> <amount> or /delete <num> to manage transactions.`;
+
+    const inline_keyboard = transactions.map((t, idx) => [
+      { text: `✏️ Edit #${idx + 1}`, callback_data: `edit_${t._id}` },
+      { text: `🗑️ Delete #${idx + 1}`, callback_data: `del_${t._id}` }
+    ]);
+
+    return {
+      text,
+      reply_markup: { inline_keyboard }
+    };
   }
 
   if (command === "/budget") {
@@ -288,7 +326,86 @@ async function handleTelegramCommand(userId, commandText) {
     return "⚠️ Invalid syntax.\n\nUsage: /budget <category> <amount>\nExample: /budget food 5000";
   }
 
+  if (command === "/delete") {
+    if (args.length === 0) {
+      return "⚠️ Usage: /delete <number>\nExample: /delete 1";
+    }
+
+    const target = args[0];
+    const expense = await resolveUserExpense(userId, target);
+
+    if (!expense) {
+      return "❌ Transaction not found or unauthorized.";
+    }
+
+    await Expense.findOneAndDelete({ _id: expense._id, phone: userId });
+    return `✅ Deleted transaction: ₹${expense.amount} on ${expense.category}`;
+  }
+
+  if (command === "/edit") {
+    if (args.length < 2) {
+      return "⚠️ Usage: /edit <number> <amount> [category]\nExample: /edit 1 50 food";
+    }
+
+    const target = args[0];
+    const newAmount = parseInt(args[1]);
+    const newCategory = args[2] ? args[2].toLowerCase() : null;
+
+    if (isNaN(newAmount) || newAmount <= 0) {
+      return "⚠️ Invalid amount. Please specify a positive number.\n\nUsage: /edit <number> <amount> [category]\nExample: /edit 1 50 food";
+    }
+
+    const expense = await resolveUserExpense(userId, target);
+
+    if (!expense) {
+      return "❌ Transaction not found or unauthorized.";
+    }
+
+    expense.amount = newAmount;
+    if (newCategory) {
+      expense.category = newCategory;
+    }
+
+    await expense.save();
+
+    return `✅ Updated transaction: ₹${expense.amount} on ${expense.category}`;
+  }
+
   return "❓ Unknown command. Type /help to see all available commands.";
+}
+
+// ---------------- INLINE BUTTON CALLBACK HANDLER ----------------
+function setupCallbackQueryListener(botInstance) {
+  if (!botInstance) return;
+
+  botInstance.on("callback_query", async (query) => {
+    if (!query.data || !query.message) return;
+    const userId = query.from.id.toString();
+    const data = query.data;
+
+    if (data.startsWith("del_")) {
+      const expenseId = data.replace("del_", "");
+      const deleted = await Expense.findOneAndDelete({ _id: expenseId, phone: userId });
+      if (deleted) {
+        await botInstance.answerCallbackQuery(query.id, { text: "Deleted!" });
+        await botInstance.sendMessage(query.message.chat.id, `✅ Deleted transaction: ₹${deleted.amount} on ${deleted.category}`);
+      } else {
+        await botInstance.answerCallbackQuery(query.id, { text: "Transaction not found or unauthorized." });
+      }
+    } else if (data.startsWith("edit_")) {
+      const expenseId = data.replace("edit_", "");
+      const exp = await Expense.findOne({ _id: expenseId, phone: userId });
+      if (exp) {
+        await botInstance.answerCallbackQuery(query.id, { text: "Editing transaction" });
+        await botInstance.sendMessage(
+          query.message.chat.id,
+          `✏️ To edit this transaction (₹${exp.amount} on ${exp.category}), send:\n\n/edit ${expenseId} <new_amount> [new_category]\n\nExample:\n/edit ${expenseId} 50 food`
+        );
+      } else {
+        await botInstance.answerCallbackQuery(query.id, { text: "Transaction not found or unauthorized." });
+      }
+    }
+  });
 }
 
 // ---------------- TELEGRAM MESSAGE DISPATCHER ----------------
@@ -300,8 +417,12 @@ async function handleIncomingTelegramMessage(botInstance, msg) {
 
   if (text.startsWith("/")) {
     try {
-      const response = await handleTelegramCommand(chatId, text);
-      await botInstance.sendMessage(msg.chat.id, response);
+      const result = await handleTelegramCommand(chatId, text);
+      if (typeof result === "object" && result.text) {
+        await botInstance.sendMessage(msg.chat.id, result.text, { reply_markup: result.reply_markup });
+      } else {
+        await botInstance.sendMessage(msg.chat.id, result);
+      }
     } catch (err) {
       console.error("Telegram command processing error:", err);
       await botInstance.sendMessage(msg.chat.id, "❌ Error executing command. Try /help");
@@ -328,6 +449,8 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
     bot = new TelegramBot(telegramToken);
     console.log("Telegram Bot initialized in WEBHOOK mode 🌐");
 
+    setupCallbackQueryListener(bot);
+
     const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
     const secretToken = process.env.TELEGRAM_SECRET_TOKEN;
 
@@ -343,6 +466,8 @@ if (telegramToken && telegramToken !== "your_telegram_bot_token") {
     // Polling mode (default for local dev)
     bot = new TelegramBot(telegramToken, { polling: true });
     console.log("Telegram Bot initialized in POLLING mode 🤖");
+
+    setupCallbackQueryListener(bot);
 
     bot.deleteWebHook()
       .then(() => console.log("Cleared active Telegram webhook for polling mode."))
@@ -372,15 +497,21 @@ app.post("/telegram/webhook", async (req, res) => {
   res.sendStatus(200);
 
   const update = req.body;
-  if (update && (update.message || update.edited_message)) {
-    const msg = update.message || update.edited_message;
-    if (bot) {
-      try {
-        await handleIncomingTelegramMessage(bot, msg);
-      } catch (err) {
-        console.error("Error handling Telegram webhook message:", err);
+  if (update) {
+    if (update.message) {
+      if (bot) {
+        try {
+          await handleIncomingTelegramMessage(bot, update.message);
+        } catch (err) {
+          console.error("Error handling Telegram webhook message:", err);
+        }
+      }
+    } else if (update.callback_query) {
+      if (bot) {
+        bot.emit("callback_query", update.callback_query);
       }
     }
+    // Note: update.edited_message is deliberately ignored so editing a Telegram message doesn't mutate DB records
   }
 });
 
