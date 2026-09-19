@@ -59,17 +59,39 @@ const CATEGORY_RULES = [
   }
 ];
 
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Detects the category of an expense from natural language input text.
  * @param {string} text - User message input
+ * @param {Array} [customCategories=[]] - Optional array of custom category objects or strings
  * @returns {string} - Matching category or "general"
  */
-export function detectCategory(text) {
+export function detectCategory(text, customCategories = []) {
   if (!text || typeof text !== "string") {
     return "general";
   }
 
   const cleanText = text.trim();
+
+  if (Array.isArray(customCategories) && customCategories.length > 0) {
+    for (const customCat of customCategories) {
+      const name = typeof customCat === "string" ? customCat : (customCat.name || customCat.slug);
+      const slug = typeof customCat === "string" ? customCat.toLowerCase() : (customCat.slug || customCat.name);
+      if (!name) continue;
+
+      const cleanName = name.replace(/_/g, " ");
+      const cleanSlug = slug.replace(/_/g, " ");
+      const patternStr = "\\b(" + escapeRegExp(cleanName) + "|" + escapeRegExp(cleanSlug) + ")\\b";
+      const pattern = new RegExp(patternStr, "i");
+
+      if (pattern.test(cleanText)) {
+        return typeof customCat === "object" && customCat.name ? customCat.name : name;
+      }
+    }
+  }
 
   for (const rule of CATEGORY_RULES) {
     if (rule.pattern.test(cleanText)) {

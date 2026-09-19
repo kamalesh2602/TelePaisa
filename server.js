@@ -9,9 +9,10 @@ import { fileURLToPath } from "url";
 import TelegramBot from "node-telegram-bot-api";
 
 import { parseExpense } from "./services/aiParser.js";
-import { detectCategory } from "./constants/categories.js";
+import { CATEGORIES, detectCategory } from "./constants/categories.js";
 import Expense from "./models/Expense.js";
 import Budget from "./models/Budget.js";
+import Category from "./models/Category.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +72,124 @@ function isInsightQuery(text) {
 
 function isBudgetSet(text) {
   return text.toLowerCase().includes("budget");
+}
+
+// ---------------- CUSTOM CATEGORY HELPERS ----------------
+
+const userStates = new Map();
+
+function createCategorySlug(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function isBuiltInCategory(name) {
+  const slug = createCategorySlug(name);
+  return CATEGORIES.some(
+    cat => cat.toLowerCase() === name.trim().toLowerCase() || cat.toLowerCase() === slug
+  );
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function addCustomCategory(userId, nameInput) {
+  if (!nameInput || typeof nameInput !== "string" || !nameInput.trim()) {
+    return "❌ Category name cannot be empty.";
+  }
+
+  const name = nameInput.trim();
+  const slug = createCategorySlug(name);
+
+  if (isBuiltInCategory(name)) {
+    return `❌ Cannot create custom category with the same name as built-in category "${name}".`;
+  }
+
+  const existing = await Category.findOne({ userId, slug });
+  if (existing) {
+    return `❌ Category "${existing.name}" already exists.`;
+  }
+
+  try {
+    await Category.create({
+      userId,
+      name,
+      slug
+    });
+    return `✅ Category "${name}" added.`;
+  } catch (err) {
+    if (err.code === 11000) {
+      return `❌ Category "${name}" already exists.`;
+    }
+    console.error("Error adding custom category:", err);
+    return `❌ Failed to add category "${name}".`;
+  }
+}
+
+async function deleteCustomCategory(userId, nameInput) {
+  if (!nameInput || typeof nameInput !== "string" || !nameInput.trim()) {
+    return "❌ Category name cannot be empty.";
+  }
+
+  const target = nameInput.trim();
+  const targetSlug = createCategorySlug(target);
+
+  if (isBuiltInCategory(target)) {
+    return `❌ Built-in category "${target}" cannot be deleted.`;
+  }
+
+  const cat = await Category.findOne({
+    userId,
+    $or: [
+      { slug: targetSlug },
+      { name: new RegExp("^" + escapeRegExp(target) + "$", "i") }
+    ]
+  });
+
+  if (!cat) {
+    return `❌ Custom category "${target}" not found.`;
+  }
+
+  await Category.deleteOne({ _id: cat._id, userId });
+  return `✅ Category "${cat.name}" deleted.`;
+}
+
+async function getCategoriesResponse(userId) {
+  const customCats = await Category.find({ userId }).sort({ name: 1 });
+  const customList = customCats.length > 0
+    ? customCats.map(c => c.name).join(", ")
+    : "None";
+
+  const builtInList = CATEGORIES.join(", ");
+
+  return (
+    `📂 Expense Categories\n\n` +
+    `📦 Built-in Categories:\n• ${builtInList}\n\n` +
+    `🏷️ Custom Categories:\n• ${customList}`
+  );
+}
+
+async function getDeleteCategoryMarkup(userId) {
+  const customCats = await Category.find({ userId }).sort({ name: 1 });
+  if (customCats.length === 0) {
+    return {
+      text: "You have no custom categories to delete."
+    };
+  }
+
+  const inline_keyboard = customCats.map(c => [
+    {
+      text: `🗑️ ${c.name}`,
+      callback_data: `delcat_${c._id}`
+    }
+  ]);
+
+  return {
+    text: "🗑️ Select a custom category to delete:\n\nOr use: /deletecategory <name>",
+    reply_markup: {
+      inline_keyboard
+    }
+  };
 }
 
 // ---------------- PERSISTENT REPLY KEYBOARD ----------------
@@ -141,6 +260,28 @@ function normalizeCommandAlias(rawText) {
     return "/website";
   }
 
+  if (
+    clean === "categories" ||
+    clean === "show categories" ||
+    clean === "my categories"
+  ) {
+    return "/categories";
+  }
+
+  if (
+    clean === "add category" ||
+    clean === "addcategory"
+  ) {
+    return "/addcategory";
+  }
+
+  if (
+    clean === "delete category" ||
+    clean === "deletecategory"
+  ) {
+    return "/deletecategory";
+  }
+
   return null;
 }
 
@@ -164,6 +305,8 @@ async function processFinanceMessage(userId, message) {
     return "❌ Could not detect an expense amount. Example: 'spent 300 on swiggy' or tap /help for options.";
   }
 
+  const customCategories = await Category.find({ userId });
+
   // ================= SET BUDGET =================
 
   if (isBudgetSet(message)) {
@@ -171,7 +314,7 @@ async function processFinanceMessage(userId, message) {
       message.match(/\d+/)?.[0] || 0
     );
 
-    const category = detectCategory(message);
+    const category = detectCategory(message, customCategories);
 
     await Budget.findOneAndUpdate(
       {
@@ -191,7 +334,7 @@ async function processFinanceMessage(userId, message) {
 
   // ================= EXPENSE =================
 
-  const data = await parseExpense(message);
+  const data = await parseExpense(message, customCategories);
 
   if (!data || !data.amount || data.amount <= 0) {
     return "❌ Could not detect a valid expense amount. Example: 'spent 300 on swiggy' or tap /help.";
@@ -433,6 +576,9 @@ async function handleTelegramCommand(
         "Track expenses naturally or tap buttons/commands below:\n\n" +
         "💡 Commands:\n" +
         "• /help - View commands & usage guide\n" +
+        "• /categories - View all built-in and custom categories\n" +
+        "• /addcategory - Add a new custom category\n" +
+        "• /deletecategory - Delete a custom category\n" +
         "• /summary - View total spending & category breakdown\n" +
         "• /summary <category> - View spending for a specific category\n" +
         "• /recent - View recent transactions with pagination & buttons\n" +
@@ -455,6 +601,9 @@ async function handleTelegramCommand(
     return {
       text:
         "📖 Available Commands:\n\n" +
+        "• /categories - View all built-in & custom categories\n" +
+        "• /addcategory - Add a custom category (e.g. /addcategory Gym)\n" +
+        "• /deletecategory - Delete a custom category (e.g. /deletecategory Gym)\n" +
         "• /summary - Show total spend & category breakdown\n" +
         "• /summary <category> - Show spend for specific category (e.g. /summary food)\n" +
         "• /recent - Show paginated recent transactions\n" +
@@ -470,6 +619,35 @@ async function handleTelegramCommand(
 
       reply_markup: mainReplyKeyboard
     };
+  }
+
+  // ================= ADD CATEGORY =================
+
+  if (command === "/addcategory") {
+    if (args.length > 0) {
+      userStates.delete(userId);
+      return await addCustomCategory(userId, args.join(" "));
+    }
+
+    userStates.set(userId, { action: "awaiting_add_category" });
+    return "What category would you like to add?";
+  }
+
+  // ================= CATEGORIES =================
+
+  if (command === "/categories") {
+    userStates.delete(userId);
+    return await getCategoriesResponse(userId);
+  }
+
+  // ================= DELETE CATEGORY =================
+
+  if (command === "/deletecategory") {
+    userStates.delete(userId);
+    if (args.length > 0) {
+      return await deleteCustomCategory(userId, args.join(" "));
+    }
+    return await getDeleteCategoryMarkup(userId);
   }
 
   // ================= WEBSITE =================
@@ -503,13 +681,15 @@ async function handleTelegramCommand(
 
   if (command === "/summary") {
     if (args.length > 0) {
-      const category = args[0].toLowerCase();
+      const categoryArg = args.join(" ").trim();
 
       const data = await Expense.aggregate([
         {
           $match: {
             phone: userId,
-            category
+            category: {
+              $regex: new RegExp("^" + escapeRegExp(categoryArg) + "$", "i")
+            }
           }
         },
         {
@@ -523,11 +703,11 @@ async function handleTelegramCommand(
       ]);
 
       if (!data.length) {
-        return `No expenses found for category: ${category}`;
+        return `No expenses found for category: ${categoryArg}`;
       }
 
       return (
-        `📊 ${category.toUpperCase()} Spending Summary:\n` +
+        `📊 ${data[0]._id.toUpperCase()} Spending Summary:\n` +
         `💰 Total Spent: ₹${data[0].total}`
       );
     }
@@ -884,6 +1064,27 @@ function setupCallbackQueryListener(botInstance) {
             }
           );
         }
+
+      // ================= DELETE CUSTOM CATEGORY =================
+
+      } else if (data.startsWith("delcat_")) {
+        const catId = data.replace("delcat_", "");
+        const cat = await Category.findOne({ _id: catId, userId });
+
+        if (cat) {
+          await Category.deleteOne({ _id: catId, userId });
+          await botInstance.answerCallbackQuery(query.id, {
+            text: "Category deleted!"
+          });
+          await botInstance.sendMessage(
+            query.message.chat.id,
+            `✅ Category "${cat.name}" deleted.`
+          );
+        } else {
+          await botInstance.answerCallbackQuery(query.id, {
+            text: "Custom category not found or unauthorized."
+          });
+        }
       }
     }
   );
@@ -899,6 +1100,24 @@ async function handleIncomingTelegramMessage(
 
   const chatId = msg.chat.id.toString();
   const text = msg.text.trim();
+
+  const pendingState = userStates.get(chatId);
+  if (pendingState) {
+    if (text.startsWith("/")) {
+      userStates.delete(chatId);
+    } else if (pendingState.action === "awaiting_add_category") {
+      userStates.delete(chatId);
+      try {
+        const response = await addCustomCategory(chatId, text);
+        await botInstance.sendMessage(msg.chat.id, response);
+        return;
+      } catch (err) {
+        console.error("Error adding category from state:", err);
+        await botInstance.sendMessage(msg.chat.id, "❌ Error adding category.");
+        return;
+      }
+    }
+  }
 
   const aliasCommand =
     normalizeCommandAlias(text);
@@ -1024,6 +1243,21 @@ function initTelegramBot() {
             "View help & usage guide"
         },
         {
+          command: "categories",
+          description:
+            "View all built-in & custom categories"
+        },
+        {
+          command: "addcategory",
+          description:
+            "Add a custom category"
+        },
+        {
+          command: "deletecategory",
+          description:
+            "Delete a custom category"
+        },
+        {
           command: "summary",
           description:
             "View spending summary"
@@ -1121,6 +1355,21 @@ function initTelegramBot() {
           command: "help",
           description:
             "View help & usage guide"
+        },
+        {
+          command: "categories",
+          description:
+            "View all built-in & custom categories"
+        },
+        {
+          command: "addcategory",
+          description:
+            "Add a custom category"
+        },
+        {
+          command: "deletecategory",
+          description:
+            "Delete a custom category"
         },
         {
           command: "summary",

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/category.test.js && node test/dashboard.test.js"
+    "test": "node test/category.test.js && node test/dashboard.test.js && node test/customCategory.test.js"
   },
   "keywords": [],
   "author": "",

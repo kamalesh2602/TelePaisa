@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY
 );
 
-export async function parseExpense(text) {
+export async function parseExpense(text, customCategories = []) {
 
   try {
 
@@ -77,13 +77,21 @@ Examples:
 
       if (parsed && typeof parsed.category === "string") {
         const catLower = parsed.category.toLowerCase().trim();
+        const matchedCustom = customCategories.find(c => {
+          const name = (typeof c === "string" ? c : c.name || "").toLowerCase();
+          const slug = (typeof c === "string" ? c : c.slug || "").toLowerCase();
+          return name === catLower || slug === catLower;
+        });
+
         if (CATEGORIES.includes(catLower)) {
           parsed.category = catLower;
+        } else if (matchedCustom) {
+          parsed.category = typeof matchedCustom === "string" ? matchedCustom : (matchedCustom.name || matchedCustom.slug);
         } else {
-          parsed.category = detectCategory(text);
+          parsed.category = detectCategory(text, customCategories);
         }
       } else if (parsed) {
-        parsed.category = detectCategory(text);
+        parsed.category = detectCategory(text, customCategories);
       }
 
       return parsed;
@@ -92,20 +100,20 @@ Examples:
 
       console.log("Invalid AI JSON, fallback used");
 
-      return basicParser(text);
+      return basicParser(text, customCategories);
     }
 
   } catch (err) {
 
     console.log("AI ERROR:", err.message);
 
-    return basicParser(text);
+    return basicParser(text, customCategories);
   }
 }
 
 // ---------------- FALLBACK PARSER ----------------
 
-function basicParser(text) {
+function basicParser(text, customCategories = []) {
 
   const lower = text.toLowerCase();
 
@@ -113,7 +121,7 @@ function basicParser(text) {
     lower.match(/\d+/)?.[0] || 0
   );
 
-  const category = detectCategory(text);
+  const category = detectCategory(text, customCategories);
 
   return {
     amount,

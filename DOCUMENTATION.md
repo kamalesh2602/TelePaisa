@@ -26,6 +26,9 @@ The Telegram command menu includes:
 
 - `/start` - Start or restart the bot
 - `/help` - Show available commands
+- `/categories` - View built-in and custom categories
+- `/addcategory` - Add a custom category
+- `/deletecategory` - Delete a custom category
 - `/website` - Open the TelePaisa analytics dashboard
 - `/summary` - View spending summary
 - `/recent` - View recent transactions
@@ -59,6 +62,44 @@ Example:
 
 ```text
 /help
+```
+
+---
+
+### `/categories`
+
+Displays both built-in categories and the current user's custom categories.
+
+Example:
+
+```text
+/categories
+```
+
+---
+
+### `/addcategory`
+
+Allows each Telegram user to create a new custom expense category.
+
+Example:
+
+```text
+/addcategory Gym
+```
+
+Or run `/addcategory` without arguments to enter the category name interactively.
+
+---
+
+### `/deletecategory`
+
+Allows a user to view and delete their existing custom categories. Built-in categories cannot be deleted.
+
+Example:
+
+```text
+/deletecategory Gym
 ```
 
 ---
@@ -212,6 +253,12 @@ TelePaisa organizes expenses into the following categories:
 | Recharge | Mobile and other recharge expenses |
 | General | Expenses that do not fit another category |
 
+### Custom Categories
+
+In addition to built-in categories, TelePaisa allows each user to create user-specific custom categories using `/addcategory`.
+
+Custom categories are stored against the user's Telegram Chat ID, keeping them isolated per user. Once added, natural language expense messages like `Spent 500 on gym` are automatically categorized into your custom category `Gym`.
+
 ---
 
 ## Zero-Value Expense Safeguard
@@ -364,6 +411,46 @@ Category: Food
 
 ---
 
+### Creating and Using a Custom Category
+
+**User**
+
+```text
+/addcategory
+```
+
+**TelePaisa**
+
+```text
+What category would you like to add?
+```
+
+**User**
+
+```text
+Gym
+```
+
+**TelePaisa**
+
+```text
+✅ Category "Gym" added.
+```
+
+**User**
+
+```text
+Spent 500 on gym
+```
+
+**TelePaisa**
+
+```text
+✅ Added ₹500 to Gym
+```
+
+---
+
 ### Viewing Recent Transactions
 
 **User**
@@ -446,6 +533,9 @@ The analytics dashboard also accepts the user's Telegram identifier to retrieve 
 |---|---|
 | `/start` | Start the bot |
 | `/help` | Show help |
+| `/categories` | View all categories |
+| `/addcategory` | Add a custom category |
+| `/deletecategory` | Delete a custom category |
 | `/website` | Open analytics dashboard |
 | `/summary` | View spending summary |
 | `/recent` | View recent transactions |
